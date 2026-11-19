@@ -2,31 +2,70 @@ package main
 
 import (
 	"bufio"
+	"context"
+	"crypto/tls"
+	"encoding/base64"
 	"fmt"
 	"net"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 )
 
 const (
-	listenAddr = ":8080"
+	defaultAddr = ":8080"
+	defaultCert = "server.crt"
+	defaultKey  = "server.key"
 
-	maxLineLen = 512
+	keepAlivePeriod = 30 * time.Second
 
-	maxNameLen = 32
+	authTimeout  = 10 * time.Second
+	writeTimeout = 10 * time.Second
+
+	maxConns = 1024
+
+	maxHandshakes = 10
+
+	maxLineLen = 2048
+
+	maxBlobLen = 1024
 )
 
-func main() {
-	reg := NewRegistry()
+func env(name, fallback string) string {
+	if v := os.Getenv(name); v != "" {
+		return v
+	}
+	return fallback
+}
 
-	ln, err := net.Listen("tcp", listenAddr)
+func main() {
+	addr := env("REGISTRY_ADDR", defaultAddr)
+	certPath := env("REGISTRY_TLS_CERT", defaultCert)
+	keyPath := env("REGISTRY_TLS_KEY", defaultKey)
+
+	cert, err := tls.LoadX509KeyPair(certPath, keyPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "server: unable to listen on %s: %v\n", listenAddr, err)
+		fmt.Fprintf(os.Stderr, "server: unable to load certificate %s and key %s: %v\n", certPath, keyPath, err)
 		os.Exit(1)
 	}
-	fmt.Printf("server: listening on %s\n", listenAddr)
+
+	lc := net.ListenConfig{KeepAlive: keepAlivePeriod}
+	base, err := lc.Listen(context.Background(), "tcp", addr)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "server: unable to listen on %s: %v\n", addr, err)
+		os.Exit(1)
+	}
+
+	ln := tls.NewListener(base, &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS13,
+	})
+
+	reg := NewRegistry()
+
+	fmt.Printf("server: listening on %s\n", addr)
+
+	slots := make(chan struct{}, maxConns)
 
 	for {
 		conn, err := ln.Accept()
@@ -34,35 +73,43 @@ func main() {
 			fmt.Fprintf(os.Stderr, "server: unable to accept: %v\n", err)
 			continue
 		}
-		go handleConnection(conn, reg)
+
+		select {
+		case slots <- struct{}{}:
+			go func() {
+				defer func() { <-slots }()
+				handleConnection(conn, reg)
+			}()
+		default:
+			conn.Close()
+		}
 	}
 }
 
 func handleConnection(conn net.Conn, reg *Registry) {
 	defer conn.Close()
 
-	if tcp, ok := conn.(*net.TCPConn); ok {
-		tcp.SetKeepAlive(true)
-		tcp.SetKeepAlivePeriod(30 * time.Second)
-	}
-
-	ip, _, err := net.SplitHostPort(conn.RemoteAddr().String())
-	if err != nil {
+	if err := conn.SetDeadline(time.Now().Add(authTimeout)); err != nil {
 		return
 	}
 
-	var name string
+	var h handshake
 	defer func() {
-		if name != "" {
-			reg.Remove(name)
+		if h.id != "" {
+			reg.RemoveOwner(h.id)
 		}
 	}()
 
 	w := bufio.NewWriter(conn)
 	reply := func(format string, args ...any) error {
+		if err := conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
+			return err
+		}
 		fmt.Fprintf(w, format+"\n", args...)
 		return w.Flush()
 	}
+
+	handshakes := 0
 
 	sc := bufio.NewScanner(conn)
 	sc.Buffer(make([]byte, 0, 256), maxLineLen)
@@ -73,14 +120,34 @@ func handleConnection(conn net.Conn, reg *Registry) {
 			continue
 		}
 
+		cmd := strings.ToUpper(fields[0])
+		if !h.authed && cmd != "HELLO" && cmd != "AUTH" && cmd != "QUIT" {
+			if err := reply("ERR unauthenticated"); err != nil {
+				return
+			}
+			continue
+		}
+
 		var err error
-		switch strings.ToUpper(fields[0]) {
-		case "REGISTER":
-			name, err = doRegister(reg, reply, fields, ip, name)
-		case "LOOKUP":
-			err = doLookup(reg, reply, fields)
-		case "LIST":
-			err = doList(reg, reply, name)
+		switch cmd {
+		case "HELLO":
+			handshakes++
+			if handshakes > maxHandshakes {
+				reply("ERR too-many-handshakes")
+				return
+			}
+			err = h.hello(reply, fields)
+		case "AUTH":
+			err = h.auth(reply, fields)
+			if h.authed {
+				if clearErr := conn.SetReadDeadline(time.Time{}); clearErr != nil {
+					return
+				}
+			}
+		case "PUBLISH":
+			err = doPublish(reg, reply, fields, h.id)
+		case "FETCH":
+			err = doFetch(reg, reply, fields, h.id)
 		case "QUIT":
 			reply("BYE")
 			return
@@ -95,67 +162,43 @@ func handleConnection(conn net.Conn, reg *Registry) {
 
 type replyFunc func(format string, args ...any) error
 
-func doRegister(reg *Registry, reply replyFunc, fields []string, ip, current string) (string, error) {
-	if current != "" {
-		return current, reply("ERR already-registered %s", current)
-	}
+func doPublish(reg *Registry, reply replyFunc, fields []string, owner string) error {
 	if len(fields) != 3 {
-		return current, reply("ERR usage REGISTER <name> <listen-port>")
+		return reply("ERR usage PUBLISH <recipient-id> <blob-b64>")
 	}
 
-	name, port := fields[1], fields[2]
-	if !validName(name) {
-		return current, reply("ERR bad-name")
-	}
-	if !validPort(port) {
-		return current, reply("ERR bad-port")
+	recipient := strings.ToLower(fields[1])
+	if !ValidID(recipient) {
+		return reply("ERR bad-id")
 	}
 
-	if err := reg.Add(Peer{Name: name, IP: ip, Port: port}); err != nil {
-		return current, reply("ERR name-taken")
+	blob := fields[2]
+	if len(blob) > maxBlobLen {
+		return reply("ERR blob-too-large")
 	}
-	return name, reply("OK %s", ip)
+	if _, err := base64.StdEncoding.DecodeString(blob); err != nil {
+		return reply("ERR bad-blob")
+	}
+
+	if err := reg.Publish(owner, recipient, blob); err != nil {
+		return reply("ERR %s", err)
+	}
+	return reply("OK")
 }
 
-func doLookup(reg *Registry, reply replyFunc, fields []string) error {
+func doFetch(reg *Registry, reply replyFunc, fields []string, requester string) error {
 	if len(fields) != 2 {
-		return reply("ERR usage LOOKUP <name>")
+		return reply("ERR usage FETCH <owner-id>")
 	}
 
-	p, ok := reg.Lookup(fields[1])
+	owner := strings.ToLower(fields[1])
+	if !ValidID(owner) {
+		return reply("ERR bad-id")
+	}
+
+	blob, ok := reg.Fetch(owner, requester)
 	if !ok {
-		return reply("NOTFOUND %s", fields[1])
+		return reply("NOTFOUND %s", owner)
 	}
-	return reply("FOUND %s %s", p.Name, p.Addr())
-}
-
-func doList(reg *Registry, reply replyFunc, self string) error {
-	peers := reg.List(self)
-
-	parts := make([]string, 0, len(peers)+1)
-	parts = append(parts, "PEERS")
-	for _, p := range peers {
-		parts = append(parts, fmt.Sprintf("%s:%s", p.Name, p.Addr()))
-	}
-	return reply("%s", strings.Join(parts, " "))
-}
-
-func validName(name string) bool {
-	if name == "" || len(name) > maxNameLen {
-		return false
-	}
-	for _, c := range name {
-		switch {
-		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9':
-		case c == '-', c == '_':
-		default:
-			return false
-		}
-	}
-	return true
-}
-
-func validPort(port string) bool {
-	n, err := strconv.Atoi(port)
-	return err == nil && n > 0 && n <= 65535
+	return reply("BLOB %s %s", owner, blob)
 }
