@@ -100,6 +100,7 @@ type handshake struct {
 	ident  Identity
 	chal   Challenge
 	authed bool
+	id     string
 }
 
 func (h *handshake) hello(reply replyFunc, fields []string) error {
@@ -142,5 +143,6 @@ func (h *handshake) auth(reply replyFunc, fields []string) error {
 	}
 
 	h.authed = true
-	return reply("OK %s", h.ident.ID())
+	h.id = h.ident.ID()
+	return reply("OK %s", h.id)
 }
