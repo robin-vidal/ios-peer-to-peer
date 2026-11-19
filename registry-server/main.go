@@ -19,6 +19,13 @@ const (
 
 	keepAlivePeriod = 30 * time.Second
 
+	authTimeout  = 10 * time.Second
+	writeTimeout = 10 * time.Second
+
+	maxConns = 1024
+
+	maxHandshakes = 10
+
 	maxLineLen = 2048
 
 	maxBlobLen = 1024
@@ -58,18 +65,33 @@ func main() {
 
 	fmt.Printf("server: listening on %s\n", addr)
 
+	slots := make(chan struct{}, maxConns)
+
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "server: unable to accept: %v\n", err)
 			continue
 		}
-		go handleConnection(conn, reg)
+
+		select {
+		case slots <- struct{}{}:
+			go func() {
+				defer func() { <-slots }()
+				handleConnection(conn, reg)
+			}()
+		default:
+			conn.Close()
+		}
 	}
 }
 
 func handleConnection(conn net.Conn, reg *Registry) {
 	defer conn.Close()
+
+	if err := conn.SetDeadline(time.Now().Add(authTimeout)); err != nil {
+		return
+	}
 
 	var h handshake
 	defer func() {
@@ -80,9 +102,14 @@ func handleConnection(conn net.Conn, reg *Registry) {
 
 	w := bufio.NewWriter(conn)
 	reply := func(format string, args ...any) error {
+		if err := conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
+			return err
+		}
 		fmt.Fprintf(w, format+"\n", args...)
 		return w.Flush()
 	}
+
+	handshakes := 0
 
 	sc := bufio.NewScanner(conn)
 	sc.Buffer(make([]byte, 0, 256), maxLineLen)
@@ -104,9 +131,19 @@ func handleConnection(conn net.Conn, reg *Registry) {
 		var err error
 		switch cmd {
 		case "HELLO":
+			handshakes++
+			if handshakes > maxHandshakes {
+				reply("ERR too-many-handshakes")
+				return
+			}
 			err = h.hello(reply, fields)
 		case "AUTH":
 			err = h.auth(reply, fields)
+			if h.authed {
+				if clearErr := conn.SetReadDeadline(time.Time{}); clearErr != nil {
+					return
+				}
+			}
 		case "PUBLISH":
 			err = doPublish(reg, reply, fields, h.id)
 		case "FETCH":
@@ -143,7 +180,9 @@ func doPublish(reg *Registry, reply replyFunc, fields []string, owner string) er
 		return reply("ERR bad-blob")
 	}
 
-	reg.Publish(owner, recipient, blob)
+	if err := reg.Publish(owner, recipient, blob); err != nil {
+		return reply("ERR %s", err)
+	}
 	return reply("OK")
 }
 
