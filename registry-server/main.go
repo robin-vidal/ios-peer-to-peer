@@ -13,8 +13,6 @@ import (
 const (
 	listenAddr = ":8080"
 
-	// maxLineLen caps a single protocol line so a peer cannot grow the read
-	// buffer without bound.
 	maxLineLen = 512
 
 	maxNameLen = 32
@@ -40,14 +38,9 @@ func main() {
 	}
 }
 
-// handleConnection serves one control connection. The registration lives as
-// long as this connection does: when it drops, the peer is removed.
 func handleConnection(conn net.Conn, reg *Registry) {
 	defer conn.Close()
 
-	// Keepalive so a device that vanishes without a FIN (phone sleeps, WiFi
-	// drops) eventually tears the connection down instead of lingering in the
-	// registry forever.
 	if tcp, ok := conn.(*net.TCPConn); ok {
 		tcp.SetKeepAlive(true)
 		tcp.SetKeepAlivePeriod(30 * time.Second)
@@ -58,7 +51,6 @@ func handleConnection(conn net.Conn, reg *Registry) {
 		return
 	}
 
-	// Name this connection registered under, empty until REGISTER succeeds.
 	var name string
 	defer func() {
 		if name != "" {
@@ -103,8 +95,6 @@ func handleConnection(conn net.Conn, reg *Registry) {
 
 type replyFunc func(format string, args ...any) error
 
-// doRegister claims a name for this connection and returns the name now held,
-// which is unchanged when the request is rejected.
 func doRegister(reg *Registry, reply replyFunc, fields []string, ip, current string) (string, error) {
 	if current != "" {
 		return current, reply("ERR already-registered %s", current)
@@ -150,8 +140,6 @@ func doList(reg *Registry, reply replyFunc, self string) error {
 	return reply("%s", strings.Join(parts, " "))
 }
 
-// validName keeps names short and free of the separators the protocol uses,
-// so a reply line stays unambiguous to parse.
 func validName(name string) bool {
 	if name == "" || len(name) > maxNameLen {
 		return false
