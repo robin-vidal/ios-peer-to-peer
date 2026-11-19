@@ -13,6 +13,8 @@ Every address it stores is encrypted for a single contact, so the registry holds
 - Fields are separated by runs of whitespace. Empty lines are ignored.
 - Command verbs are case insensitive. Ids are lowercased on input.
 - Base64 is standard encoding with padding. Ids are 64 lowercase hexadecimal characters.
+- A connection has 10 seconds from accept to reach a successful `AUTH`, not extendable by sending commands. The TLS handshake runs inside that budget. Once authenticated there is no read timeout, since staying connected is what keeps a peer present, and a dead peer is caught by TCP keepalive.
+- At most 10 `HELLO` attempts per connection, and at most 1024 concurrent connections server wide.
 
 ## Identity
 
@@ -79,6 +81,8 @@ S: NOTFOUND <owner-id>
 
 Blobs are opaque. The server checks that a blob is valid base64 and at most 1024 encoded characters, stores it verbatim, and returns it verbatim.
 
+An owner holds at most 64 blobs, so a peer can publish to 64 distinct recipients. Replacing the blob of an existing recipient still works at the cap.
+
 ## Blob contract
 
 The blob format is a client side convention. The server does not parse, verify or understand any of it.
@@ -116,7 +120,7 @@ Presence is the connection, not a record. Nothing is persisted: a server restart
 
 ## Errors
 
-Every error is one line starting with `ERR`. None of them closes the connection.
+Every error is one line starting with `ERR`. Only `ERR too-many-handshakes` closes the connection.
 
 | Error | Cause |
 |---|---|
@@ -131,6 +135,8 @@ Every error is one line starting with `ERR`. None of them closes the connection.
 | `ERR bad-id` | an id is not 64 hexadecimal characters |
 | `ERR bad-blob` | the blob is not valid base64 |
 | `ERR blob-too-large` | the blob exceeds 1024 encoded characters |
+| `ERR too-many-recipients` | the owner already holds 64 blobs and the recipient is a new one |
+| `ERR too-many-handshakes` | more than 10 `HELLO` on one connection, the server then closes |
 | `ERR internal` | the server could not generate a nonce |
 
 ## What this protects, and what it does not
