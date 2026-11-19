@@ -2,10 +2,17 @@ package main
 
 import (
 	"encoding/hex"
+	"errors"
 	"sync"
 )
 
-const idLen = 64
+const (
+	idLen = 64
+
+	maxBlobsPerOwner = 64
+)
+
+var errTooManyRecipients = errors.New("too-many-recipients")
 
 type Registry struct {
 	mu    sync.RWMutex
@@ -16,16 +23,23 @@ func NewRegistry() *Registry {
 	return &Registry{blobs: make(map[string]map[string]string)}
 }
 
-func (r *Registry) Publish(owner, recipient, blob string) {
+func (r *Registry) Publish(owner, recipient, blob string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	byRecipient, ok := r.blobs[owner]
-	if !ok {
+	if ok {
+		_, exists := byRecipient[recipient]
+		if !exists && len(byRecipient) >= maxBlobsPerOwner {
+			return errTooManyRecipients
+		}
+	} else {
 		byRecipient = make(map[string]string)
 		r.blobs[owner] = byRecipient
 	}
+
 	byRecipient[recipient] = blob
+	return nil
 }
 
 func (r *Registry) Fetch(owner, recipient string) (string, bool) {
