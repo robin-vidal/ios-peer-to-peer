@@ -1,70 +1,52 @@
 package main
 
 import (
-	"errors"
-	"net"
-	"sort"
+	"encoding/hex"
 	"sync"
 )
 
-var ErrNameTaken = errors.New("name taken")
-
-type Peer struct {
-	Name string
-	IP   string
-	Port string
-}
-
-func (p Peer) Addr() string {
-	return net.JoinHostPort(p.IP, p.Port)
-}
+const idLen = 64
 
 type Registry struct {
 	mu    sync.RWMutex
-	peers map[string]Peer
+	blobs map[string]map[string]string
 }
 
 func NewRegistry() *Registry {
-	return &Registry{peers: make(map[string]Peer)}
+	return &Registry{blobs: make(map[string]map[string]string)}
 }
 
-func (r *Registry) Add(p Peer) error {
+func (r *Registry) Publish(owner, recipient, blob string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if _, exists := r.peers[p.Name]; exists {
-		return ErrNameTaken
+	byRecipient, ok := r.blobs[owner]
+	if !ok {
+		byRecipient = make(map[string]string)
+		r.blobs[owner] = byRecipient
 	}
-	r.peers[p.Name] = p
-	return nil
+	byRecipient[recipient] = blob
 }
 
-func (r *Registry) Remove(name string) {
+func (r *Registry) Fetch(owner, recipient string) (string, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	blob, ok := r.blobs[owner][recipient]
+	return blob, ok
+}
+
+func (r *Registry) RemoveOwner(owner string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	delete(r.peers, name)
+	delete(r.blobs, owner)
 }
 
-func (r *Registry) Lookup(name string) (Peer, bool) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	p, ok := r.peers[name]
-	return p, ok
-}
-
-func (r *Registry) List(except string) []Peer {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	out := make([]Peer, 0, len(r.peers))
-	for name, p := range r.peers {
-		if name == except {
-			continue
-		}
-		out = append(out, p)
+func ValidID(id string) bool {
+	if len(id) != idLen {
+		return false
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
-	return out
+	_, err := hex.DecodeString(id)
+	return err == nil
 }
