@@ -7,25 +7,18 @@ import (
 	"sync"
 )
 
-// ErrNameTaken is returned when a peer registers a name another live
-// connection already holds.
 var ErrNameTaken = errors.New("name taken")
 
-// Peer is a registered device. IP is what the server observed on the
-// control connection; Port is the one the device listens on for direct
-// peer-to-peer traffic.
 type Peer struct {
 	Name string
 	IP   string
 	Port string
 }
 
-// Addr is the endpoint other peers dial.
 func (p Peer) Addr() string {
 	return net.JoinHostPort(p.IP, p.Port)
 }
 
-// Registry maps names to peers. Safe for concurrent use.
 type Registry struct {
 	mu    sync.RWMutex
 	peers map[string]Peer
@@ -61,8 +54,6 @@ func (r *Registry) Lookup(name string) (Peer, bool) {
 	return p, ok
 }
 
-// List returns every peer except the caller, sorted by name so clients get a
-// stable ordering. Pass an empty string to list everyone.
 func (r *Registry) List(except string) []Peer {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
