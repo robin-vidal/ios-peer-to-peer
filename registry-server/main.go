@@ -2,10 +2,10 @@ package main
 
 import (
 	"bufio"
+	"encoding/base64"
 	"fmt"
 	"net"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -13,9 +13,9 @@ import (
 const (
 	listenAddr = ":8080"
 
-	maxLineLen = 512
+	maxLineLen = 2048
 
-	maxNameLen = 32
+	maxBlobLen = 1024
 )
 
 func main() {
@@ -46,17 +46,10 @@ func handleConnection(conn net.Conn, reg *Registry) {
 		tcp.SetKeepAlivePeriod(30 * time.Second)
 	}
 
-	ip, _, err := net.SplitHostPort(conn.RemoteAddr().String())
-	if err != nil {
-		return
-	}
-
 	var h handshake
-
-	var name string
 	defer func() {
-		if name != "" {
-			reg.Remove(name)
+		if h.id != "" {
+			reg.RemoveOwner(h.id)
 		}
 	}()
 
@@ -89,12 +82,10 @@ func handleConnection(conn net.Conn, reg *Registry) {
 			err = h.hello(reply, fields)
 		case "AUTH":
 			err = h.auth(reply, fields)
-		case "REGISTER":
-			name, err = doRegister(reg, reply, fields, ip, name)
-		case "LOOKUP":
-			err = doLookup(reg, reply, fields)
-		case "LIST":
-			err = doList(reg, reply, name)
+		case "PUBLISH":
+			err = doPublish(reg, reply, fields, h.id)
+		case "FETCH":
+			err = doFetch(reg, reply, fields, h.id)
 		case "QUIT":
 			reply("BYE")
 			return
@@ -109,67 +100,41 @@ func handleConnection(conn net.Conn, reg *Registry) {
 
 type replyFunc func(format string, args ...any) error
 
-func doRegister(reg *Registry, reply replyFunc, fields []string, ip, current string) (string, error) {
-	if current != "" {
-		return current, reply("ERR already-registered %s", current)
-	}
+func doPublish(reg *Registry, reply replyFunc, fields []string, owner string) error {
 	if len(fields) != 3 {
-		return current, reply("ERR usage REGISTER <name> <listen-port>")
+		return reply("ERR usage PUBLISH <recipient-id> <blob-b64>")
 	}
 
-	name, port := fields[1], fields[2]
-	if !validName(name) {
-		return current, reply("ERR bad-name")
-	}
-	if !validPort(port) {
-		return current, reply("ERR bad-port")
+	recipient := strings.ToLower(fields[1])
+	if !ValidID(recipient) {
+		return reply("ERR bad-id")
 	}
 
-	if err := reg.Add(Peer{Name: name, IP: ip, Port: port}); err != nil {
-		return current, reply("ERR name-taken")
+	blob := fields[2]
+	if len(blob) > maxBlobLen {
+		return reply("ERR blob-too-large")
 	}
-	return name, reply("OK %s", ip)
+	if _, err := base64.StdEncoding.DecodeString(blob); err != nil {
+		return reply("ERR bad-blob")
+	}
+
+	reg.Publish(owner, recipient, blob)
+	return reply("OK")
 }
 
-func doLookup(reg *Registry, reply replyFunc, fields []string) error {
+func doFetch(reg *Registry, reply replyFunc, fields []string, requester string) error {
 	if len(fields) != 2 {
-		return reply("ERR usage LOOKUP <name>")
+		return reply("ERR usage FETCH <owner-id>")
 	}
 
-	p, ok := reg.Lookup(fields[1])
+	owner := strings.ToLower(fields[1])
+	if !ValidID(owner) {
+		return reply("ERR bad-id")
+	}
+
+	blob, ok := reg.Fetch(owner, requester)
 	if !ok {
-		return reply("NOTFOUND %s", fields[1])
+		return reply("NOTFOUND %s", owner)
 	}
-	return reply("FOUND %s %s", p.Name, p.Addr())
-}
-
-func doList(reg *Registry, reply replyFunc, self string) error {
-	peers := reg.List(self)
-
-	parts := make([]string, 0, len(peers)+1)
-	parts = append(parts, "PEERS")
-	for _, p := range peers {
-		parts = append(parts, fmt.Sprintf("%s:%s", p.Name, p.Addr()))
-	}
-	return reply("%s", strings.Join(parts, " "))
-}
-
-func validName(name string) bool {
-	if name == "" || len(name) > maxNameLen {
-		return false
-	}
-	for _, c := range name {
-		switch {
-		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9':
-		case c == '-', c == '_':
-		default:
-			return false
-		}
-	}
-	return true
-}
-
-func validPort(port string) bool {
-	n, err := strconv.Atoi(port)
-	return err == nil && n > 0 && n <= 65535
+	return reply("BLOB %s %s", owner, blob)
 }
