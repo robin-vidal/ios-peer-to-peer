@@ -51,6 +51,8 @@ func handleConnection(conn net.Conn, reg *Registry) {
 		return
 	}
 
+	var h handshake
+
 	var name string
 	defer func() {
 		if name != "" {
@@ -73,8 +75,20 @@ func handleConnection(conn net.Conn, reg *Registry) {
 			continue
 		}
 
+		cmd := strings.ToUpper(fields[0])
+		if !h.authed && cmd != "HELLO" && cmd != "AUTH" && cmd != "QUIT" {
+			if err := reply("ERR unauthenticated"); err != nil {
+				return
+			}
+			continue
+		}
+
 		var err error
-		switch strings.ToUpper(fields[0]) {
+		switch cmd {
+		case "HELLO":
+			err = h.hello(reply, fields)
+		case "AUTH":
+			err = h.auth(reply, fields)
 		case "REGISTER":
 			name, err = doRegister(reg, reply, fields, ip, name)
 		case "LOOKUP":
