@@ -1,1 +1,4 @@
 /registry-server/registry-server
+server.crt
+server.key
+*.pem
