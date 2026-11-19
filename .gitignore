@@ -2,3 +2,8 @@
 server.crt
 server.key
 *.pem
+
+.dart_tool/
+build/
+client/pubspec.lock
+*.local.md
