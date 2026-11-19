@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"net"
@@ -11,22 +13,50 @@ import (
 )
 
 const (
-	listenAddr = ":8080"
+	defaultAddr = ":8080"
+	defaultCert = "server.crt"
+	defaultKey  = "server.key"
+
+	keepAlivePeriod = 30 * time.Second
 
 	maxLineLen = 2048
 
 	maxBlobLen = 1024
 )
 
-func main() {
-	reg := NewRegistry()
+func env(name, fallback string) string {
+	if v := os.Getenv(name); v != "" {
+		return v
+	}
+	return fallback
+}
 
-	ln, err := net.Listen("tcp", listenAddr)
+func main() {
+	addr := env("REGISTRY_ADDR", defaultAddr)
+	certPath := env("REGISTRY_TLS_CERT", defaultCert)
+	keyPath := env("REGISTRY_TLS_KEY", defaultKey)
+
+	cert, err := tls.LoadX509KeyPair(certPath, keyPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "server: unable to listen on %s: %v\n", listenAddr, err)
+		fmt.Fprintf(os.Stderr, "server: unable to load certificate %s and key %s: %v\n", certPath, keyPath, err)
 		os.Exit(1)
 	}
-	fmt.Printf("server: listening on %s\n", listenAddr)
+
+	lc := net.ListenConfig{KeepAlive: keepAlivePeriod}
+	base, err := lc.Listen(context.Background(), "tcp", addr)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "server: unable to listen on %s: %v\n", addr, err)
+		os.Exit(1)
+	}
+
+	ln := tls.NewListener(base, &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS13,
+	})
+
+	reg := NewRegistry()
+
+	fmt.Printf("server: listening on %s\n", addr)
 
 	for {
 		conn, err := ln.Accept()
@@ -40,11 +70,6 @@ func main() {
 
 func handleConnection(conn net.Conn, reg *Registry) {
 	defer conn.Close()
-
-	if tcp, ok := conn.(*net.TCPConn); ok {
-		tcp.SetKeepAlive(true)
-		tcp.SetKeepAlivePeriod(30 * time.Second)
-	}
 
 	var h handshake
 	defer func() {
