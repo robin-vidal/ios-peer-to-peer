@@ -13,6 +13,14 @@ REGISTRY_TLS_CERT=server.crt REGISTRY_TLS_KEY=server.key ./registry-server
 
 The server refuses to start without a usable certificate and key. It never falls back to plaintext.
 
+## Tests
+
+```sh
+go test ./...
+```
+
+They cover id derivation, the refusal of a key that is not a point on P-256, and every way a challenge signature can fail.
+
 ## Configuration
 
 | Variable | Default | Meaning |
