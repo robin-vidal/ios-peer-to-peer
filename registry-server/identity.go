@@ -2,12 +2,14 @@ package main
 
 import (
 	"crypto/ecdh"
-	"crypto/ed25519"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"math/big"
 	"time"
 )
 
@@ -15,6 +17,9 @@ const (
 	authDomain   = "ios-registry-auth-v1"
 	nonceLen     = 32
 	challengeTTL = 30 * time.Second
+
+	publicKeyLen = 65
+	signatureLen = 64
 )
 
 var (
@@ -25,31 +30,48 @@ var (
 )
 
 type Identity struct {
-	signPub ed25519.PublicKey
-	boxPub  []byte
+	signPub    *ecdsa.PublicKey
+	signPubRaw []byte
+	boxPubRaw  []byte
+}
+
+func decodePublicKey(encoded string) ([]byte, error) {
+	raw, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil || len(raw) != publicKeyLen {
+		return nil, errBadKey
+	}
+	return raw, nil
 }
 
 func ParseIdentity(signPubB64, boxPubB64 string) (Identity, error) {
-	signPub, err := base64.StdEncoding.DecodeString(signPubB64)
-	if err != nil || len(signPub) != ed25519.PublicKeySize {
-		return Identity{}, errBadKey
+	signPubRaw, err := decodePublicKey(signPubB64)
+	if err != nil {
+		return Identity{}, err
 	}
-
-	boxPub, err := base64.StdEncoding.DecodeString(boxPubB64)
+	signPub, err := ecdsa.ParseUncompressedPublicKey(elliptic.P256(), signPubRaw)
 	if err != nil {
 		return Identity{}, errBadKey
 	}
-	if _, err := ecdh.X25519().NewPublicKey(boxPub); err != nil {
+
+	boxPubRaw, err := decodePublicKey(boxPubB64)
+	if err != nil {
+		return Identity{}, err
+	}
+	if _, err := ecdh.P256().NewPublicKey(boxPubRaw); err != nil {
 		return Identity{}, errBadKey
 	}
 
-	return Identity{signPub: ed25519.PublicKey(signPub), boxPub: boxPub}, nil
+	return Identity{
+		signPub:    signPub,
+		signPubRaw: signPubRaw,
+		boxPubRaw:  boxPubRaw,
+	}, nil
 }
 
 func (i Identity) ID() string {
 	sum := sha256.New()
-	sum.Write(i.signPub)
-	sum.Write(i.boxPub)
+	sum.Write(i.signPubRaw)
+	sum.Write(i.boxPubRaw)
 	return hex.EncodeToString(sum.Sum(nil))
 }
 
@@ -77,20 +99,25 @@ func (c Challenge) Verify(id Identity, sigB64 string, now time.Time) error {
 	if now.Sub(c.issued) > challengeTTL {
 		return errStaleChallenge
 	}
-	if len(id.signPub) != ed25519.PublicKeySize {
+	if id.signPub == nil {
 		return errBadKey
 	}
 
 	sig, err := base64.StdEncoding.DecodeString(sigB64)
-	if err != nil || len(sig) != ed25519.SignatureSize {
+	if err != nil || len(sig) != signatureLen {
 		return errBadSignature
 	}
 
 	signed := make([]byte, 0, len(authDomain)+len(c.nonce))
 	signed = append(signed, authDomain...)
 	signed = append(signed, c.nonce...)
+	digest := sha256.Sum256(signed)
 
-	if !ed25519.Verify(id.signPub, signed, sig) {
+	half := signatureLen / 2
+	r := new(big.Int).SetBytes(sig[:half])
+	s := new(big.Int).SetBytes(sig[half:])
+
+	if !ecdsa.Verify(id.signPub, digest[:], r, s) {
 		return errBadSignature
 	}
 	return nil
@@ -108,7 +135,7 @@ func (h *handshake) hello(reply replyFunc, fields []string) error {
 		return reply("ERR already-authenticated")
 	}
 	if len(fields) != 3 {
-		return reply("ERR usage HELLO <ed25519-pub-b64> <x25519-pub-b64>")
+		return reply("ERR usage HELLO <p256-sign-pub-b64> <p256-agree-pub-b64>")
 	}
 
 	ident, err := ParseIdentity(fields[1], fields[2])
