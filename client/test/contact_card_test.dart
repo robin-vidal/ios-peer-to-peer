@@ -32,11 +32,12 @@ void main() {
 
     final cases = <String>[
       '',
-      'nope:1:${parts[2]}:${parts[3]}',
-      'p2pchat:2:${parts[2]}:${parts[3]}',
-      'p2pchat:1:${parts[2]}',
-      'p2pchat:1:!!!:${parts[3]}',
-      'p2pchat:1:${parts[2]}:AAAA',
+      'nope:2:${parts[2]}:${parts[3]}',
+      'p2pchat:1:${parts[2]}:${parts[3]}',
+      'p2pchat:3:${parts[2]}:${parts[3]}',
+      'p2pchat:2:${parts[2]}',
+      'p2pchat:2:!!!:${parts[3]}',
+      'p2pchat:2:${parts[2]}:AAAA',
     ];
 
     for (final broken in cases) {

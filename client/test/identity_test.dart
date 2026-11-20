@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
-import 'package:cryptography/cryptography.dart';
 import 'package:registry_client/registry_client.dart';
+import 'package:registry_client/src/crypto.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -9,13 +9,15 @@ void main() {
     final identity = await Identity.generate();
 
     expect(identity.id, matches(RegExp(r'^[0-9a-f]{64}$')));
-    expect(identity.signingPublicKey, hasLength(keyLength));
-    expect(identity.agreementPublicKey, hasLength(keyLength));
+    expect(identity.signingPublicKey, hasLength(publicKeyLength));
+    expect(identity.agreementPublicKey, hasLength(publicKeyLength));
+    expect(identity.signingPublicKey.first, 0x04);
+    expect(identity.agreementPublicKey.first, 0x04);
   });
 
   test('id derivation is deterministic and order sensitive', () async {
-    final signing = Uint8List.fromList(List<int>.filled(keyLength, 1));
-    final agreement = Uint8List.fromList(List<int>.filled(keyLength, 2));
+    final signing = Uint8List.fromList(List<int>.filled(publicKeyLength, 1));
+    final agreement = Uint8List.fromList(List<int>.filled(publicKeyLength, 2));
 
     final first = await Identity.deriveId(
       signingPublicKey: signing,
@@ -48,38 +50,84 @@ void main() {
     final message = <int>[1, 2, 3, 4];
     final signature = await identity.sign(message);
 
-    expect(signature, hasLength(64));
+    expect(signature, hasLength(signatureLength));
 
-    final verified = await Ed25519().verify(
-      message,
-      signature: Signature(
-        signature,
-        publicKey: SimplePublicKey(
-          identity.signingPublicKey,
-          type: KeyPairType.ed25519,
-        ),
-      ),
+    final key = decodePublicKey(identity.signingPublicKey);
+    expect(
+      verifyMessage(key: key, message: message, signature: signature),
+      isTrue,
     );
-    expect(verified, isTrue);
+    expect(
+      verifyMessage(
+        key: key,
+        message: <int>[1, 2, 3, 5],
+        signature: signature,
+      ),
+      isFalse,
+    );
+  });
 
-    final tampered = await Ed25519().verify(
-      <int>[1, 2, 3, 5],
-      signature: Signature(
-        signature,
-        publicKey: SimplePublicKey(
-          identity.signingPublicKey,
-          type: KeyPairType.ed25519,
-        ),
+  test('a signature of the wrong length is refused', () async {
+    final identity = await Identity.generate();
+    final message = <int>[1, 2, 3, 4];
+    final signature = await identity.sign(message);
+    final key = decodePublicKey(identity.signingPublicKey);
+
+    expect(
+      verifyMessage(
+        key: key,
+        message: message,
+        signature: signature.sublist(0, 63),
       ),
+      isFalse,
     );
-    expect(tampered, isFalse);
+    expect(
+      verifyMessage(
+        key: key,
+        message: message,
+        signature: Uint8List(signatureLength),
+      ),
+      isFalse,
+    );
+  });
+
+  test('a key that is not a point on P-256 is refused', () async {
+    final identity = await Identity.generate();
+    final broken = Uint8List.fromList(identity.signingPublicKey);
+    broken[broken.length - 1] ^= 0x01;
+
+    expect(
+      () => decodePublicKey(broken),
+      throwsA(isA<ProtocolException>()),
+    );
+    expect(
+      () => decodePublicKey(identity.signingPublicKey.sublist(0, 64)),
+      throwsA(isA<ProtocolException>()),
+    );
   });
 
   test('seeds must be 32 bytes', () async {
     expect(
       () => Identity.fromSeeds(
         signingSeed: List<int>.filled(16, 0),
-        agreementSeed: List<int>.filled(keyLength, 0),
+        agreementSeed: List<int>.filled(scalarLength, 1),
+      ),
+      throwsA(isA<ProtocolException>()),
+    );
+  });
+
+  test('a seed outside the curve order is refused', () async {
+    expect(
+      () => Identity.fromSeeds(
+        signingSeed: List<int>.filled(scalarLength, 0),
+        agreementSeed: List<int>.filled(scalarLength, 1),
+      ),
+      throwsA(isA<ProtocolException>()),
+    );
+    expect(
+      () => Identity.fromSeeds(
+        signingSeed: List<int>.filled(scalarLength, 0xff),
+        agreementSeed: List<int>.filled(scalarLength, 1),
       ),
       throwsA(isA<ProtocolException>()),
     );
@@ -87,7 +135,7 @@ void main() {
 
   test('an unsupported serialization version is rejected', () async {
     expect(
-      () => Identity.fromJson(<String, dynamic>{'version': '2'}),
+      () => Identity.fromJson(<String, dynamic>{'version': '1'}),
       throwsA(isA<ProtocolException>()),
     );
   });
