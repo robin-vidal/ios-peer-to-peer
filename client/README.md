@@ -2,6 +2,8 @@
 
 Dart client for the registry server. Pure Dart, no Flutter dependency, no native plugin, so it runs on iOS, Android, Windows, Linux and macOS. Not on web: it needs raw sockets.
 
+All curve work is P-256, because the Secure Enclave generates and holds P-256 keys only. The private halves handled here are the ones a device cannot keep in hardware: ephemeral agreement keys, and the long term keys of a peer running without an enclave.
+
 Wire protocol: [docs/protocol.md](../docs/protocol.md).
 
 ## What this does, and what it does not
@@ -45,15 +47,21 @@ await client.close();
 
 ## Identity
 
-`Identity` holds an Ed25519 signing pair and an X25519 agreement pair. Its `id` is the hex SHA-256 of both public keys, and the server derives the same value from the keys presented during the handshake, so an id cannot be claimed without the matching key.
+`Identity` holds a P-256 signing pair and a P-256 agreement pair. Public keys are 65 bytes, x963 uncompressed: a leading `0x04` then the two coordinates. Its `id` is the hex SHA-256 of both public keys, and the server derives the same value from the keys presented during the handshake, so an id cannot be claimed without the matching key.
 
-`toJson` emits the two 32 byte seeds, base64 encoded. Store that in the Keychain, never in plain preferences. `fromJson` restores the same id.
+`sign` hashes the message with SHA-256 and returns 64 bytes, `r` then `s`, each 32 bytes big endian. DER is never produced or accepted.
+
+`toJson` emits the two 32 byte private scalars, base64 encoded. Store that in the Keychain, never in plain preferences. `fromJson` restores the same id and refuses a scalar outside the curve order.
+
+A key held this way is a key the application can read. An enclave backed identity keeps the signing scalar in hardware instead, and this class is then the fallback for a peer that has no enclave.
 
 `connect` compares the id the server returned against the locally derived one and fails if they differ.
 
 ## Contact cards
 
-A card is the QR payload: `p2pchat:1:<signing-b64url>:<agreement-b64url>`. Public data only, so it needs no secrecy.
+A card is the QR payload: `p2pchat:2:<signing-b64url>:<agreement-b64url>`. Public data only, so it needs no secrecy.
+
+`decode` refuses a key that is not 65 bytes, not canonically encoded, or not a point on P-256, so an invalid curve point never reaches an agreement.
 
 `decode` derives the id from the keys and never reads one off the wire, so a card cannot lie about its id. Two cards are equal when their keys are.
 
@@ -69,12 +77,12 @@ The callback has to return true for this to work. It only fires for a certificat
 
 ```
 inner  = "ios-registry-addr-v1" || field(host) || field(port) || field(timestamp)
-sig    = Ed25519(author, inner)
-blob   = ephemeral X25519 public key || ChaCha20-Poly1305(K, field(inner) || field(sig))
-K      = HKDF-SHA256(X25519(ephemeral, recipient agreement key), info = domain)
+sig    = ECDSA-P256(author, SHA-256(inner))
+blob   = ephemeral P-256 public key (65) || AES-GCM(K, field(inner) || field(sig))
+K      = HKDF-SHA256(ECDH(ephemeral, recipient agreement key), salt = ephemeral public key, info = domain)
 ```
 
-Fields are length prefixed, so no two different addresses produce the same signed bytes.
+Fields are length prefixed, so no two different addresses produce the same signed bytes. The GCM nonce is zero: the key is derived from a fresh ephemeral key for every blob, so it is never reused.
 
 `open` fails with `BlobAuthenticityException` when the blob was sealed for someone else, when the signature does not match the expected author, or when a byte changed. It fails with `BlobStaleException` for an address older than `maxAge`, 24 hours by default, or stamped more than five minutes in the future.
 
@@ -90,4 +98,4 @@ Every `ERR` token from the server maps to a subclass of `ServerErrorException`, 
 dart test
 ```
 
-Unit tests cover id derivation, the card codec, and sealing. The integration test builds and runs the real Go server with a generated certificate, then drives the full handshake, publish and fetch, including the 64 recipient cap and the drop of blobs on disconnect. It skips itself when `go` or `openssl` is missing.
+Unit tests cover id derivation, the refusal of a key that is not a point on P-256, the card codec, and sealing. The integration test builds and runs the real Go server with a generated certificate, then drives the full handshake, publish and fetch, including the 64 recipient cap and the drop of blobs on disconnect. It skips itself when `go` or `openssl` is missing.
