@@ -2,11 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:cryptography/cryptography.dart';
-
 import 'address_blob.dart';
 import 'codec.dart';
 import 'contact_card.dart';
+import 'crypto.dart';
 import 'exceptions.dart';
 import 'identity.dart';
 import 'peer_address.dart';
@@ -52,8 +51,7 @@ class RegistryClient {
       throw const CertificatePinException('the server presented no certificate');
     }
 
-    final digest = await Sha256().hash(certificate.der);
-    final actual = hexEncode(digest.bytes);
+    final actual = hexEncode(sha256Of(certificate.der));
     if (!constantTimeEquals(hexDecode(actual), hexDecode(expected))) {
       socket.destroy();
       throw CertificatePinException(
