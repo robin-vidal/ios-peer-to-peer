@@ -2,7 +2,7 @@
 
 Messages travel peer to peer. The registry never sees one, so every guarantee comes from the message format itself. This is a client side convention: no server implements any of it.
 
-For address discovery, see [protocol.md](protocol.md).
+For address discovery, see [protocol.md](protocol.md). For how these bytes are delimited on the peer connection, see [frames.md](frames.md).
 
 ## Scope
 

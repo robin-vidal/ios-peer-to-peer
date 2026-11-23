@@ -38,19 +38,25 @@ MAX_PAYLOAD = 65536
 
 64 KiB, for every type. A text message does not approach it, and the cap is the bound on how much a peer can make the other side allocate before anything is authenticated.
 
-Each type narrows it further, below. The limits are part of the format: a reader checks `length` against the limit for that type before reading the payload.
+Each type narrows it further, below. The limits are part of the format: a reader checks `length` against both bounds for that type before reading the payload.
+
+A sender is bound by the same number. The plaintext body of a message is capped at 63 KiB, 64512 bytes, refused when the message is composed rather than when it is framed. The remaining kilobyte covers the signed header fields, the wrapped message key, the authentication tag and the signature. Without a cap on the sending side a message is signed, stored, and only then found to be unframable, which is the worst moment to discover it.
 
 ## Frame types
 
-| Type | Name | Payload | Limit |
-|---|---|---|---|
-| `0x01` | `handshake` | one session handshake step | 1024 |
-| `0x02` | `message` | `field(signed) \|\| field(sig)` of a chat message | `MAX_PAYLOAD` |
-| `0x03` | `ack` | `field(signed) \|\| field(sig)` of an acknowledgement | 1024 |
-| `0x04` | `keepalive` | empty | 0 |
-| `0x05` | `heads` | reserved, never sent | refused |
-| `0x06` | `chunk` | reserved, never sent | refused |
-| `0x07` | `chunk-ack` | reserved, never sent | refused |
+| Type | Name | Payload | Min | Max |
+|---|---|---|---|---|
+| `0x01` | `handshake` | one session handshake step | 137 | 1024 |
+| `0x02` | `message` | `field(signed) \|\| field(sig)` of a chat message | 76 | `MAX_PAYLOAD` |
+| `0x03` | `ack` | `field(signed) \|\| field(sig)` of an acknowledgement | 76 | 1024 |
+| `0x04` | `keepalive` | empty | 0 | 0 |
+| `0x05` | `heads` | reserved, never sent | refused | refused |
+| `0x06` | `chunk` | reserved, never sent | refused | refused |
+| `0x07` | `chunk-ack` | reserved, never sent | refused | refused |
+
+Both bounds are inclusive. The minimum exists so that a frame cannot be empty where its type requires content: `length` zero on a `message` passes every check that only tests an upper bound, and fails one layer higher, inside a parser that was reached for nothing.
+
+`handshake` is at least a 65 byte public key and a 64 byte signature behind their two length prefixes. `message` and `ack` are at least two length prefixes, a 64 byte signature and a non empty signed block: 4 + 4 + 4 + 64. The message layer enforces the rest of their shape, since framing does not parse the payload.
 
 `0x00` is not a type and is refused, so a zero filled buffer is never a valid frame.
 
@@ -95,7 +101,7 @@ The order below is normative, since a reader that reorders it allocates from an 
 
 1. Read exactly 8 bytes. Fewer means the stream ended: close.
 2. Check `version`, `reserved`, `type`.
-3. Look up the limit for the type and check `length` against it, and against the minimum.
+3. Look up the two bounds for the type and check `length` against both.
 4. Only then allocate the payload buffer and read exactly `length` bytes.
 5. Dispatch on the type.
 
