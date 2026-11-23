@@ -22,13 +22,15 @@ A peer holds two key pairs:
 
 | Key | Curve | Purpose |
 |---|---|---|
-| Signing | Ed25519 | proves the peer holds its identity, signs blobs |
-| Agreement | X25519 | lets contacts encrypt to the peer |
+| Signing | P-256 ECDSA | proves the peer holds its identity, signs blobs |
+| Agreement | P-256 ECDH | lets contacts encrypt to the peer |
+
+P-256 is not a preference. The Secure Enclave generates and holds P-256 keys only, so it is the one curve whose private half can stay in hardware and never reach the application.
 
 Its id is derived from both public keys:
 
 ```
-id = hex(SHA-256(ed25519_pub || x25519_pub))
+id = hex(SHA-256(sign_pub || agree_pub))
 ```
 
 The client never sends its id. The server derives it from the keys presented during the handshake, so an id cannot be claimed without the matching signing key.
@@ -38,20 +40,22 @@ The id is the only identifier. There are no names and no accounts.
 ## Handshake
 
 ```
-C: HELLO <ed25519-pub-b64> <x25519-pub-b64>
+C: HELLO <p256-sign-pub-b64> <p256-agree-pub-b64>
 S: CHALLENGE <nonce-b64>
 C: AUTH <sig-b64>
 S: OK <id>
 ```
 
-Both public keys are 32 bytes. The nonce is 32 random bytes.
+Both public keys are 65 bytes, x963 uncompressed: a leading `0x04` then the two 32 byte coordinates. A key of the right length that is not a point on P-256 is refused like a malformed one. The nonce is 32 random bytes.
 
-`sig` is an Ed25519 signature over the concatenation of the ASCII domain prefix and the raw nonce, with no separator:
+`sig` is a P-256 ECDSA signature over the SHA-256 of the concatenation of the ASCII domain prefix and the raw nonce, with no separator:
 
 ```
 signed = "ios-registry-auth-v1" || nonce
-sig    = Ed25519-Sign(ed25519_priv, signed)
+sig    = ECDSA-P256-Sign(sign_priv, SHA-256(signed))
 ```
+
+`sig` is 64 bytes: `r` then `s`, each 32 bytes big endian, zero padded. DER is not accepted, so there is no ASN.1 parser on the server and no length field an attacker can play with.
 
 The prefix is 20 bytes and keeps the signature from being replayed into another protocol that signs raw nonces.
 
@@ -88,7 +92,7 @@ An owner holds at most 64 blobs, so a peer can publish to 64 distinct recipients
 The blob format is a client side convention. The server does not parse, verify or understand any of it.
 
 ```
-blob = Seal(contact_x25519_pub, Sign(own_ed25519_sk, address || timestamp))
+blob = Seal(contact_agree_pub, Sign(own_sign_priv, address || timestamp))
 ```
 
 Each part earns its place:
@@ -128,7 +132,7 @@ Every error is one line starting with `ERR`. Only `ERR too-many-handshakes` clos
 | `ERR already-authenticated` | `HELLO` or `AUTH` on an authenticated connection |
 | `ERR unknown-command` | unknown verb |
 | `ERR usage <command> <args>` | wrong number of arguments |
-| `ERR bad-key` | a public key is not valid base64 or not 32 bytes |
+| `ERR bad-key` | a public key is not valid base64, not 65 bytes, or not a point on P-256 |
 | `ERR no-challenge` | `AUTH` with no live challenge, including a consumed one |
 | `ERR stale-challenge` | the challenge is older than 30 seconds |
 | `ERR bad-signature` | signature malformed, not 64 bytes, or not valid for the nonce |

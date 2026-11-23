@@ -1,22 +1,16 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:cryptography/cryptography.dart';
+import 'package:pointycastle/export.dart';
 
 import 'codec.dart';
 import 'contact_card.dart';
+import 'crypto.dart';
 import 'exceptions.dart';
 import 'identity.dart';
 import 'peer_address.dart';
 
 const String addressDomain = 'ios-registry-addr-v1';
-
-const int _nonceLength = 12;
-const int _macLength = 16;
-const int _signatureLength = 64;
-
-final Cipher _cipher = Chacha20.poly1305Aead();
-final Hkdf _kdf = Hkdf(hmac: Hmac.sha256(), outputLength: 32);
 
 class AddressBlob {
   static Future<Uint8List> seal({
@@ -35,21 +29,18 @@ class AddressBlob {
       ..field(inner)
       ..field(signature);
 
-    final ephemeral = await agreementAlgorithm.newKeyPair();
-    final ephemeralPublicKey =
-        Uint8List.fromList((await ephemeral.extractPublicKey()).bytes);
+    final ephemeral = generateKeyPair();
+    final ephemeralPublicKey = encodePublicKey(ephemeral.publicKey);
 
-    final key = await _deriveKey(
-      keyPair: ephemeral,
-      remotePublicKey: recipient.agreementPublicKey,
+    final key = _deriveKey(
+      own: ephemeral.privateKey,
+      peerPublicKey: recipient.agreementPublicKey,
       ephemeralPublicKey: ephemeralPublicKey,
     );
 
-    final box = await _cipher.encrypt(payload.take(), secretKey: key);
-
     return (FieldWriter()
           ..raw(ephemeralPublicKey)
-          ..raw(box.concatenation()))
+          ..raw(aesGcmSeal(key: key, plaintext: payload.take())))
         .take();
   }
 
@@ -61,28 +52,24 @@ class AddressBlob {
     Duration maxSkew = const Duration(minutes: 5),
     DateTime? now,
   }) async {
-    if (blob.length < keyLength + _nonceLength + _macLength) {
+    if (blob.length < publicKeyLength + gcmTagLength) {
       throw const ProtocolException('address blob is too short');
     }
 
     final reader = FieldReader(blob);
-    final ephemeralPublicKey = reader.raw(keyLength);
-    final box = SecretBox.fromConcatenation(
-      reader.raw(reader.remaining),
-      nonceLength: _nonceLength,
-      macLength: _macLength,
-    );
+    final ephemeralPublicKey = reader.raw(publicKeyLength);
+    final sealed = reader.raw(reader.remaining);
 
-    final key = await _deriveKey(
-      keyPair: recipient.agreementKeyPair,
-      remotePublicKey: ephemeralPublicKey,
+    final key = _deriveKey(
+      own: recipient.agreementKey,
+      peerPublicKey: ephemeralPublicKey,
       ephemeralPublicKey: ephemeralPublicKey,
     );
 
     final Uint8List payload;
     try {
-      payload = Uint8List.fromList(await _cipher.decrypt(box, secretKey: key));
-    } on SecretBoxAuthenticationError {
+      payload = aesGcmOpen(key: key, ciphertext: sealed);
+    } on InvalidCipherTextException {
       throw const BlobAuthenticityException(
         'address blob is not sealed for this identity',
       );
@@ -93,19 +80,14 @@ class AddressBlob {
     final signature = payloadReader.field();
     payloadReader.expectEnd();
 
-    if (signature.length != _signatureLength) {
+    if (signature.length != signatureLength) {
       throw const BlobAuthenticityException('signature is not 64 bytes');
     }
 
-    final verified = await signingAlgorithm.verify(
-      inner,
-      signature: Signature(
-        signature,
-        publicKey: SimplePublicKey(
-          author.signingPublicKey,
-          type: KeyPairType.ed25519,
-        ),
-      ),
+    final verified = verifyMessage(
+      key: decodePublicKey(author.signingPublicKey),
+      message: inner,
+      signature: signature,
     );
     if (!verified) {
       throw const BlobAuthenticityException(
@@ -167,26 +149,14 @@ class AddressBlob {
     return SignedPeerAddress(address: address, publishedAt: publishedAt);
   }
 
-  static Future<SecretKey> _deriveKey({
-    required KeyPair keyPair,
-    required List<int> remotePublicKey,
+  static Uint8List _deriveKey({
+    required ECPrivateKey own,
+    required List<int> peerPublicKey,
     required List<int> ephemeralPublicKey,
-  }) async {
-    if (remotePublicKey.length != keyLength) {
-      throw const ProtocolException('agreement key is not 32 bytes');
-    }
-
-    final shared = await agreementAlgorithm.sharedSecretKey(
-      keyPair: keyPair,
-      remotePublicKey: SimplePublicKey(
-        remotePublicKey,
-        type: KeyPairType.x25519,
-      ),
-    );
-
-    return _kdf.deriveKey(
-      secretKey: shared,
-      nonce: ephemeralPublicKey,
+  }) {
+    return hkdfSha256(
+      secret: agreedSecret(key: own, peer: decodePublicKey(peerPublicKey)),
+      salt: ephemeralPublicKey,
       info: utf8.encode(addressDomain),
     );
   }

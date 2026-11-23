@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'codec.dart';
+import 'crypto.dart';
 import 'exceptions.dart';
 import 'identity.dart';
 
@@ -21,13 +22,13 @@ class ContactCard {
   String encode() {
     final signing = base64Url.encode(signingPublicKey);
     final agreement = base64Url.encode(agreementPublicKey);
-    return 'p2pchat:1:$signing:$agreement';
+    return 'p2pchat:2:$signing:$agreement';
   }
 
   static Future<ContactCard> decode(String text) async {
     final parts = text.split(':');
-    if (parts.length != 4 || parts[0] != 'p2pchat' || parts[1] != '1') {
-      throw const ProtocolException('not a version 1 contact card');
+    if (parts.length != 4 || parts[0] != 'p2pchat' || parts[1] != '2') {
+      throw const ProtocolException('not a version 2 contact card');
     }
 
     final Uint8List signingPublicKey;
@@ -39,10 +40,8 @@ class ContactCard {
       throw const ProtocolException('contact card holds invalid base64');
     }
 
-    if (signingPublicKey.length != keyLength ||
-        agreementPublicKey.length != keyLength) {
-      throw const ProtocolException('a contact card key is not 32 bytes');
-    }
+    decodePublicKey(signingPublicKey);
+    decodePublicKey(agreementPublicKey);
 
     return ContactCard(
       signingPublicKey: signingPublicKey,

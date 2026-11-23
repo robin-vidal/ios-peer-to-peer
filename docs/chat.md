@@ -29,12 +29,14 @@ signed = "ios-chat-msg-v1"
       || field(seq)                8 bytes, uint64 big endian
       || field(timestamp)          8 bytes, int64 big endian, unix milliseconds
       || field(parents)            n * 32 bytes
-      || field(keys)               n * 112 bytes
+      || field(keys)               n * 145 bytes
       || field(body)
 
-sig    = Ed25519-Sign(author_signing_key, signed)
+sig    = ECDSA-P256-Sign(author_signing_key, SHA-256(signed))
 msg_id = SHA-256(signed)
 ```
+
+`msg_id` hashes `signed`, never `sig`. ECDSA signatures are malleable, so an id derived from one would not be unique to a message.
 
 `seq` counts per conversation and per author, starting at 1, with no gaps.
 
@@ -47,9 +49,9 @@ msg_id = SHA-256(signed)
 The body is encrypted once, under a fresh random key per message:
 
 ```
-body       = ChaCha20-Poly1305(K, zero nonce, plaintext)
-keys entry = recipient_id (32) || sealed K (80)
-sealed K   = X25519 ephemeral public key (32) || ChaCha20-Poly1305 of K (48)
+body       = AES-GCM(K, zero nonce, plaintext)
+keys entry = recipient_id (32) || sealed K (113)
+sealed K   = P-256 ephemeral public key (65) || AES-GCM of K (48)
 ```
 
 The zero nonce is safe because `K` is random and used for exactly one message.
@@ -89,7 +91,7 @@ Two members comparing heads detect a member that told them different histories. 
 
 | Property | Mechanism | Assumption |
 |---|---|---|
-| Authorship | Ed25519 over `signed`, key bound to a person by in person QR scan | the author key is not compromised |
+| Authorship | ECDSA P-256 over `SHA-256(signed)`, key held in the Secure Enclave and bound to a person by in person QR scan | the device is not compromised while unlocked |
 | Conversation binding | `conversation_id` inside `signed`, plus the domain prefix | none |
 | Order within an author | `seq` inside `signed`, contiguous | none |
 | Tamper evidence | `msg_id` is a hash of `signed`, parents reference ids | none |
