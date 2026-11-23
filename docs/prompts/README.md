@@ -11,7 +11,7 @@ Each member owns one file and nobody else writes in it.
 | robin-vidal | [robin-vidal.md](robin-vidal.md) |
 | corentin-dupaigne | [corentin-dupaigne.md](corentin-dupaigne.md) |
 | MarieLoou | [MarieLoou.md](MarieLoou.md) |
-| ozone92 | [ozone92.md](ozone92.md) |
+| Ozone92 | [Ozone92.md](Ozone92.md) |
 | ybenalii | [ybenalii.md](ybenalii.md) |
 
 A file that holds no prompt yet is a file whose owner has not written their journal, not a file to delete. The file is named after your GitHub
