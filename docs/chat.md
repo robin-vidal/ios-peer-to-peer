@@ -6,7 +6,9 @@ For address discovery, see [protocol.md](protocol.md). For how these bytes are d
 
 ## Scope
 
-Everything provable without a trusted ordering authority is proven here. One thing is not, and is not worked around: **completeness**. No peer can prove that nothing else was said.
+A conversation has exactly two participants, and both hold the other's contact card from an in person QR scan. Groups, media and history sync are out of scope, and the fields that only existed to serve them are gone rather than left unused. The last section says what was cut and why.
+
+Everything provable without a trusted ordering authority is proven here. Two things are not, and are not worked around: **completeness** and **non receipt**. No peer can prove that nothing else was said, and no sender can prove that a delivered message was read.
 
 ## Encoding
 
@@ -18,7 +20,7 @@ field = uint32 big endian length || bytes
 
 Without the prefixes, moving one byte from `conversation_id` into `author_id` would yield identical signed bytes, and one signature would cover two different messages.
 
-A `conversation_id` is 32 random bytes chosen by the creator. An `author_id` or `recipient_id` is the raw 32 byte form of the registry id, not its hex text.
+A `conversation_id` is 32 random bytes chosen by whichever peer sends first. An `author_id` or `recipient_id` is the raw 32 byte form of the registry id, not its hex text.
 
 ## Message
 
@@ -28,8 +30,7 @@ signed = "ios-chat-msg-v1"
       || field(author_id)         32 bytes
       || field(seq)                8 bytes, uint64 big endian
       || field(timestamp)          8 bytes, int64 big endian, unix milliseconds
-      || field(parents)            n * 32 bytes
-      || field(keys)               n * 145 bytes
+      || field(keys)             145 bytes, exactly one entry
       || field(body)
 
 sig    = ECDSA-P256-Sign(author_signing_key, SHA-256(signed))
@@ -38,15 +39,13 @@ msg_id = SHA-256(signed)
 
 `msg_id` hashes `signed`, never `sig`. ECDSA signatures are malleable, so an id derived from one would not be unique to a message.
 
-`seq` counts per conversation and per author, starting at 1, with no gaps.
+`seq` counts per conversation and per author, starting at 1, with no gaps. It is the only ordering field. Each peer therefore keeps two counters per conversation: the next value it will send, and the next value it expects to receive.
 
-`parents` lists the `msg_id` of every message the author had seen with no known child. The history is a graph, not a list.
+`timestamp` is advisory. Clocks lie, and nothing verifies them. Ordering comes from `seq`, never from time.
 
-`timestamp` is advisory. Clocks lie, and nothing verifies them. Ordering comes from `parents` and `seq`, never from time.
+## Body and the message key
 
-## Body and group keys
-
-The body is encrypted once, under a fresh random key per message:
+The body is encrypted under a fresh random key per message, and that key is wrapped for the recipient:
 
 ```
 body       = AES-GCM(K, zero nonce, plaintext)
@@ -56,9 +55,15 @@ sealed K   = P-256 ephemeral public key (65) || AES-GCM of K (48)
 
 The zero nonce is safe because `K` is random and used for exactly one message.
 
-Encrypting the body once and wrapping `K` per recipient matters beyond efficiency: every recipient receives **identical signed bytes**, so `msg_id` is the same for everyone and the graph stays consistent across the group. Encrypting the plaintext separately per recipient would give each one a different `msg_id`, and no two members could ever agree on a parent.
+`keys` holds exactly one entry, the recipient, and a decoder refuses a `keys` field whose length is not 145 or whose `recipient_id` is not the local identity. A second entry would mean a second reader of the same body, which this scope does not have.
 
-A group of N means N entries in `keys`, and N-1 direct sends. There is no fanout service.
+Wrapping `K` rather than encrypting the plaintext directly keeps the signed bytes independent of the key agreement: `K` is sealed to an ephemeral public key, so the sender's long term agreement key never derives the body key, and a compromise of that key later does not open stored messages.
+
+## Size limits
+
+The plaintext body is capped at 63 KiB, 64512 bytes, and a longer one is refused at composition. The cap comes from the frame layer, where a `message` payload cannot exceed `MAX_PAYLOAD`, 65536 bytes, see [frames.md](frames.md). The remaining kilobyte covers the signed header fields, the wrapped key, the GCM tag, the signature and the two length prefixes the frame payload adds.
+
+Refusing at composition rather than at framing is deliberate. A message checked only on the way out has already been signed, given an `msg_id` and stored before it is found to be unsendable.
 
 ## Acknowledgement
 
@@ -72,20 +77,17 @@ signed = "ios-chat-ack-v1"
 
 Signed, so an ack cannot be forged for someone else. Redelivery is idempotent: a message already known by `msg_id` is dropped.
 
-A sender retries on reconnect until acked. Both peers must be online at the same time, otherwise nothing is delivered, and on iOS a suspended app holds no connection.
+A sender retries on reconnect until acked. Both peers must be online at the same time, otherwise nothing is delivered, and on iOS a suspended app holds no connection. An unacked message waits in the sender's outbox.
 
-## Equivocation detection
+An ack states delivery to the device, not that anybody read it.
 
-Members exchange a signed statement of their current graph heads:
+## Ordering and gaps
 
-```
-signed = "ios-chat-heads-v1"
-      || field(conversation_id)
-      || field(heads)        n * 32 bytes
-      || field(timestamp)
-```
+A receiver accepts a message when `seq` is exactly the value it expects from that author, then increments.
 
-Two members comparing heads detect a member that told them different histories. Signing it makes the fork provable afterwards rather than a claim.
+A higher `seq` means something is missing. The message is held, not dropped and not shown out of order, and the conversation is marked incomplete until the gap is filled by a retry. A lower or repeated `seq` is a duplicate and is dropped by `msg_id`.
+
+A gap that never fills is visible to the user rather than silently closed. The sender is the only party that can fill it, so a gap that persists means either a connection that never recovered or a counterparty that chose not to resend, and nothing in the format distinguishes those two.
 
 ## What is proven
 
@@ -94,27 +96,30 @@ Two members comparing heads detect a member that told them different histories. 
 | Authorship | ECDSA P-256 over `SHA-256(signed)`, key held in the Secure Enclave and bound to a person by in person QR scan | the device is not compromised while unlocked |
 | Conversation binding | `conversation_id` inside `signed`, plus the domain prefix | none |
 | Order within an author | `seq` inside `signed`, contiguous | none |
-| Tamper evidence | `msg_id` is a hash of `signed`, parents reference ids | none |
-| No fabrication by a peer | a peer holds no other member's signing key | the other key is not compromised |
-| Omission mid stream | a gap in an author's `seq` | none |
-| Omission at the tail | a parent reference to an unknown `msg_id` | some later message references the hidden one |
-| Equivocation | comparing signed heads | at least one honest member is reachable |
+| Tamper evidence | `msg_id` is a hash of `signed`, and the body carries a GCM tag under a key only the recipient can unwrap | none |
+| No fabrication by the other peer | a peer holds no part of the other's signing key | the other key is not compromised |
+| Omission mid stream | a gap in an author's `seq` | a later message from the same author arrives |
+| Confidentiality of the body | AES-GCM under a per message key, sealed to the recipient's agreement key | the recipient's device is not compromised |
 | Non repudiation of what was said | the signed message is kept | none |
-| Replay and duplicates | idempotence on `msg_id` | none |
+| Replay and duplicates | idempotence on `msg_id`, and `seq` is already consumed | none |
 
 ## What is not proven
 
 | Not proven | Why |
 |---|---|
-| Completeness | proving that nothing else was said requires a trusted total order. With two colluding members out of three there is no honest witness and nothing to detect. Accepted bound. |
+| Completeness | proving that nothing else was said requires a trusted total order. With two participants the counterparty is the only witness, so a withheld message leaves no honest third party to contradict it. Accepted bound. |
+| Omission at the tail | the last message of a stream can be withheld with no gap left behind, since nothing follows it to reference the missing `seq`. Detection needs traffic that does not exist yet. |
 | Non receipt | a recipient can always withhold an ack. Delivery is provable when it cooperates, never its absence. |
-| Time | timestamps are unverifiable. Only causal order is evidence. |
-| Hiding addresses from members | a direct connection needs a destination. See protocol.md. |
+| Reading | an ack is produced by the device on delivery, and no signature can state that a person looked at the screen. |
+| Time | timestamps are unverifiable. Only `seq` is evidence of order. |
+| Hiding addresses from a contact | a direct connection needs a destination. See [protocol.md](protocol.md). |
 
-Signal and WhatsApp do not defend against n-1 colluding members either. The bound is not specific to this design.
+## What was cut, and why
 
-## Sync on rejoin
+Dropped with groups, kept here as a record so a later version does not reuse the same names for something else:
 
-A returning member asks **every** reachable member for the missing history and takes the union. That moves the trust from one peer being honest to at least one being honest, which is the cheapest real gain available here.
-
-Omissions are then detected by `seq` gaps and dangling parents, not prevented.
+- **A parent graph.** Messages referenced the ids of every message their author had seen with no known child, which ordered a history across several authors. With two participants, two per author sequences carry the same order at a fraction of the state.
+- **Equivocation detection.** Members exchanged a signed statement of their current graph heads, and two of them comparing heads caught a third that had told them different histories. It needs at least three participants and an honest one among them, so it has nothing to detect in a two party conversation. Frame type `0x05` stays reserved for it.
+- **Per recipient key fanout.** `keys` carried one entry per member, which let every member receive identical signed bytes and therefore agree on one `msg_id`. One recipient makes the fanout a single entry.
+- **History sync on rejoin.** A returning member asked every reachable member for the missing history and took the union, moving the trust from one peer being honest to at least one being honest. With one counterparty there is no union to take.
+- **Media in chunks.** Frame types `0x06` and `0x07` stay reserved and nothing sends them. Text only, within the body cap above.
