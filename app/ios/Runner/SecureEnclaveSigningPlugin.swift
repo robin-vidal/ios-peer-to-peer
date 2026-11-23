@@ -54,20 +54,26 @@ final class SecureEnclaveSigningPlugin: NSObject, FlutterPlugin {
     do {
       let key: SecureEnclave.P256.Signing.PrivateKey
       if let stored = try loadWrappedKey() {
-        do {
-          key = try SecureEnclave.P256.Signing.PrivateKey(dataRepresentation: stored)
-        } catch {
-          result(FlutterError(
-            code: "key-load-failed",
-            message: "The stored Secure Enclave signing key could not be loaded.",
-            details: String(describing: error)
-          ))
-          return
+        if let loaded = try? SecureEnclave.P256.Signing.PrivateKey(
+          dataRepresentation: stored
+        ) {
+          key = loaded
+        } else {
+          deleteStoredReference()
+          do {
+            key = try createPrivateKey()
+          } catch {
+            result(FlutterError(
+              code: "key-creation-failed",
+              message: "Secure Enclave key creation failed after the old key became unavailable.",
+              details: String(describing: error)
+            ))
+            return
+          }
         }
       } else {
         do {
-          key = try SecureEnclave.P256.Signing.PrivateKey()
-          try storeWrappedKey(key.dataRepresentation)
+          key = try createPrivateKey()
         } catch {
           result(FlutterError(
             code: "key-creation-failed",
@@ -89,6 +95,27 @@ final class SecureEnclaveSigningPlugin: NSObject, FlutterPlugin {
         details: String(describing: error)
       ))
     }
+  }
+
+  private func createPrivateKey() throws -> SecureEnclave.P256.Signing.PrivateKey {
+    var accessControlError: Unmanaged<CFError>?
+    guard let accessControl = SecAccessControlCreateWithFlags(
+      nil,
+      kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+      [.privateKeyUsage],
+      &accessControlError
+    ) else {
+      throw SigningPluginError.accessControlCreation(
+        accessControlError?.takeRetainedValue()
+      )
+    }
+
+    let key = try SecureEnclave.P256.Signing.PrivateKey(
+      compactRepresentable: true,
+      accessControl: accessControl
+    )
+    try storeWrappedKey(key.dataRepresentation)
+    return key
   }
 
   private func loadPublicKey(result: @escaping FlutterResult) {
@@ -158,21 +185,25 @@ final class SecureEnclaveSigningPlugin: NSObject, FlutterPlugin {
   }
 
   private func deleteIdentity(result: @escaping FlutterResult) {
+    if deleteStoredReference() {
+      result(true)
+      return
+    }
+    result(FlutterError(
+      code: "key-delete-failed",
+      message: "The Secure Enclave signing key could not be deleted.",
+      details: nil
+    ))
+  }
+
+  private func deleteStoredReference() -> Bool {
     let query: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: Self.keychainService,
       kSecAttrAccount as String: Self.keychainAccount,
     ]
     let status = SecItemDelete(query as CFDictionary)
-    guard status == errSecSuccess || status == errSecItemNotFound else {
-      result(FlutterError(
-        code: "key-delete-failed",
-        message: "The Secure Enclave signing key could not be deleted.",
-        details: status
-      ))
-      return
-    }
-    result(true)
+    return status == errSecSuccess || status == errSecItemNotFound
   }
 
   private func loadPrivateKey() throws -> SecureEnclave.P256.Signing.PrivateKey? {
@@ -228,6 +259,7 @@ private enum SigningPluginError: Error {
   case keychainStatus(OSStatus)
   case invalidSignatureLength(Int)
   case invalidDigestLength(Int)
+  case accessControlCreation(CFError?)
 }
 
 private struct RawSHA256Digest: Digest {
