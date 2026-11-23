@@ -1,11 +1,22 @@
 /registry-server/registry-server
+
 server.crt
 server.key
 *.pem
+.env
+*.p12
+*.p8
+*.mobileprovision
+*.keystore
+*.jks
+
+audit/
+*.7z
+*.zip
 
 .dart_tool/
 build/
-client/pubspec.lock
 *.local.md
 client/test-report.json
 app/test-report.json
+.DS_Store
