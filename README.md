@@ -56,6 +56,8 @@ REGISTRY_TLS_CERT=server.crt REGISTRY_TLS_KEY=server.key ./registry-server
 
 The STRIDE analysis, MASVS grid, SAST and DAST reports, SBOM and cross audit are not published here. They are handed over out of band as one encrypted archive, per issue #55: the cross audit carries another team's weaknesses.
 
+The prompt journals are the exception: they record how the system was designed, not what is weak in it, so they live in [docs/prompts](docs/prompts/README.md), one file per member.
+
 ## License
 
 MIT, see [LICENSE](LICENSE).
