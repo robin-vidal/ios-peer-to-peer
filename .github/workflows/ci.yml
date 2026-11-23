@@ -1,0 +1,77 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: registry-server/go.mod
+          cache: false
+      - name: Vet
+        working-directory: registry-server
+        run: go vet ./...
+      - name: Test
+        working-directory: registry-server
+        run: go test ./...
+
+  dart:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.14.0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: registry-server/go.mod
+          cache: false
+      - name: Report the toolchain the integration test needs
+        run: |
+          go version
+          openssl version
+      - name: Get
+        working-directory: client
+        run: dart pub get
+      - name: Analyze
+        working-directory: client
+        run: dart analyze --fatal-infos
+      - name: Test
+        working-directory: client
+        run: dart test --reporter github --file-reporter json:test-report.json
+      - name: Refuse a skipped test
+        working-directory: client
+        run: |
+          skipped=$(jq -n '[inputs | select(.type == "testDone" and .skipped == true and .hidden != true)] | length' test-report.json)
+          if [ "$skipped" -ne 0 ]; then
+            echo "$skipped test(s) were skipped, the integration test must run here"
+            exit 1
+          fi
+
+  flutter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.50.0
+      - name: Get
+        working-directory: app
+        run: flutter pub get
+      - name: Analyze
+        working-directory: app
+        run: flutter analyze
+      - name: Test
+        working-directory: app
+        run: flutter test
