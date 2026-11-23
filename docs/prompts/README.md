@@ -23,8 +23,9 @@ parts, not as a summary: nothing is repeated here.
 
 ## Method
 
-A prompt is recorded verbatim. Same wording, same typos, same language. A
-prompt that is cleaned up afterwards no longer proves what was asked.
+A prompt is recorded as it was sent. Spelling is normalised, nothing else is:
+same wording, same language, same content. A prompt that is rewritten
+afterwards no longer proves what was asked.
 
 Order is chronological inside a file.
 
@@ -41,8 +42,8 @@ output.
 
 ## Rules
 
-A prompt is recorded verbatim, so a prompt that carries a secret is never
-recorded at all. No passphrase, no private key, no certificate fingerprint, no
+A prompt is recorded, so a prompt that carries a secret is never recorded at
+all. No passphrase, no private key, no certificate fingerprint, no
 token, no personal data about anyone. If a prompt needed one of those, write
 the entry without it and say that the value was redacted.
 

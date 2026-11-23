@@ -1,4 +1,4 @@
 # Prompt journal, corentin-dupaigne
 
-Prompts verbatim, in the language they were written in, chronological order.
+Prompts as sent, in the language they were written in, chronological order.
 Method and rules are in [README.md](README.md).
