@@ -50,3 +50,9 @@ Nice, you can do the changes. Organize yourself in clean commit. After each modi
 
 Please apply your plan
 
+---
+
+Thanks. Please read the ticket again and verify the code fills out all the requirements
+
+---
+
