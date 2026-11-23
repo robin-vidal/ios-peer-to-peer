@@ -1,6 +1,6 @@
 # Prompt journal, robin-vidal
 
-Prompts verbatim, in the language they were written in, chronological order.
+Prompts as sent, in the language they were written in, chronological order.
 Method and rules are in [README.md](README.md).
 
 ## Network reality and threat model
@@ -60,3 +60,15 @@ Method and rules are in [README.md](README.md).
 ## Hygiene
 
 > verifie que l'arbre apres rebase est identique a celui que t'as teste par hash
+
+## Project management and toolchain
+
+> je veux que tu organises le projet github en passant en ready tous les trucs pas bloques et en backlog tous les trucs bloques
+
+> est-ce qu'il y a des issues qui recoupent ca ? - rapport sonarqube sast / sast avec rapport en artefact (lien sonar ou static) - accepter merge si pas de failles critiques / high - faciliter pipeline de test redteam en blackbox et acces au code
+
+> il faudrait separer le milestone red team du milestone secu, peut-etre en mettre un en 0.8.0 et un en 0.7.0
+
+> sur les issues dev mets a la fois ozone et ybenalii
+
+> chacun doit avoir son fichier de prompts et un fichier global qui importe les autres
