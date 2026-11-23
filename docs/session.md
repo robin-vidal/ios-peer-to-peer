@@ -8,11 +8,13 @@ For framing see [frames.md](frames.md), for what travels once the session is ope
 
 The peer connection already runs TLS, and TLS 1.3 is itself forward secret. It is not sufficient here for two reasons.
 
-A TLS certificate key lives in the process. The identity key does not: it is generated in the Secure Enclave and signs without ever being readable, so it cannot be handed to a TLS stack as a certificate key. Pinning a certificate therefore proves possession of a software key, not of the identity a contact scanned. This handshake moves that proof in band, where the enclave can produce it.
+A TLS certificate key lives in the process. The identity key does not: it is generated in the Secure Enclave and signs without ever being readable, so it cannot be handed to a TLS stack as a certificate key. A peer therefore presents a self signed certificate under a software key, and the other end has nothing to pin it against: a contact card carries an identity key, not a certificate. The peer TLS layer is encryption without authentication, and this handshake is what names the peer, in band, where the enclave can produce the proof.
+
+That ordering is deliberate rather than tolerated. A man in the middle who terminates both TLS connections and relays the handshake frames unchanged still never derives the session keys, since those come from the two peers' ephemerals and it holds neither private half. It relays bytes it cannot open, and the moment it edits one the tag fails. What it can do is forge a `keepalive`, which lies about liveness and carries nothing, and cut the connection, which it could do anyway.
 
 The second reason is the message layer. A per message key is sealed to the recipient's long term agreement key, so a recipient's agreement key recovered later opens every message it ever received. Sealing the frame payloads under keys derived from two ephemerals removes that: once the session ends and both ephemerals are gone, the recorded bytes are not openable by any surviving key.
 
-The long term agreement key from the contact card is not used in this handshake at all. It keeps its single job, address blobs in [protocol.md](protocol.md).
+The long term agreement key from the contact card is not used in this handshake at all. It keeps the two jobs it already had: sealing address blobs in [protocol.md](protocol.md), and wrapping the per message key in [chat.md](chat.md).
 
 ## Identities and encodings
 

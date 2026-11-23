@@ -8,7 +8,7 @@ This document specifies framing only. It defines where one frame ends and the ne
 
 Framing assumes an ordered, reliable byte stream and assumes nothing else. TLS sits under it as a separate layer, added by the peer session, and neither layer reads a field of the other. A frame is not a TLS record: a frame can span several records and several frames can arrive in one record, so a reader never treats a read boundary as a frame boundary.
 
-Framing provides no confidentiality, no authenticity and no replay protection. All three come from elsewhere: the transport from TLS with both ends pinning the other's signing key, the payload from the session keys of [session.md](session.md) once the handshake has completed, the message content from its own signature as specified in [chat.md](chat.md). A reader that trusts a frame because it parsed cleanly has misread this document.
+Framing provides no confidentiality, no authenticity and no replay protection, and neither does the TLS layer under it provide authenticity here: a peer certificate is self signed by a key that is not the identity key, and nothing pins it. TLS contributes an encrypted ordered stream and nothing about who is at the other end. Identity, payload confidentiality and replay refusal all come from the session of [session.md](session.md), and authorship from the message signature of [chat.md](chat.md). A reader that trusts a frame because it parsed cleanly, or because TLS carried it, has misread this document.
 
 ## Header
 
