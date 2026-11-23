@@ -1,6 +1,6 @@
 # Registry protocol
 
-The registry is a rendezvous service. Peers use it to discover each other's address, then talk directly over their own connection, framed as in [frames.md](frames.md). It never carries chat traffic.
+The registry is a rendezvous service. Peers use it to discover each other's address, then talk directly over their own connection, framed as in [frames.md](frames.md) and authenticated by the handshake in [session.md](session.md). It never carries chat traffic.
 
 Every address it stores is encrypted for a single contact, so the registry holds bytes it cannot read.
 
@@ -22,7 +22,7 @@ A peer holds two key pairs:
 
 | Key | Curve | Purpose |
 |---|---|---|
-| Signing | P-256 ECDSA | proves the peer holds its identity, signs blobs |
+| Signing | P-256 ECDSA | proves the peer holds its identity, signs blobs, signs the peer session handshake |
 | Agreement | P-256 ECDH | lets contacts encrypt to the peer |
 
 P-256 is not a preference. The Secure Enclave generates and holds P-256 keys only, so it is the one curve whose private half can stay in hardware and never reach the application.

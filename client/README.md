@@ -1,6 +1,6 @@
 # registry_client
 
-Dart client for the registry server. Pure Dart, no Flutter dependency, no native plugin, so it runs on iOS, Android, Windows, Linux and macOS. Not on web: it needs raw sockets.
+Dart client for the registry server. Pure Dart, no Flutter dependency, no native plugin, so the package itself is platform independent wherever raw sockets exist, which excludes web. The application ships for iOS, with Android and macOS as development and demo targets.
 
 All curve work is P-256, because the Secure Enclave generates and holds P-256 keys only. The private halves handled here are the ones a device cannot keep in hardware: ephemeral agreement keys, and the long term keys of a peer running without an enclave.
 

@@ -20,7 +20,15 @@ field = uint32 big endian length || bytes
 
 Without the prefixes, moving one byte from `conversation_id` into `author_id` would yield identical signed bytes, and one signature would cover two different messages.
 
-A `conversation_id` is 32 random bytes chosen by whichever peer sends first. An `author_id` or `recipient_id` is the raw 32 byte form of the registry id, not its hex text.
+An `author_id` or `recipient_id` is the raw 32 byte form of the registry id, not its hex text.
+
+A `conversation_id` is derived from the two identities rather than chosen:
+
+```
+conversation_id = SHA-256("ios-chat-conv-v1" || field(id_low) || field(id_high))     32 bytes
+```
+
+`id_low` and `id_high` are the two 32 byte ids ordered as unsigned byte strings, so both peers compute the same value without exchanging anything. A random id would need an owner to pick it, and two participants have no creator: both can compose a first message at the same time, and two random ids for one conversation have nothing to reconcile them. Deriving it also binds the conversation to the pair, so a signed message cannot be replayed into a conversation with somebody else.
 
 ## Message
 
@@ -48,16 +56,25 @@ msg_id = SHA-256(signed)
 The body is encrypted under a fresh random key per message, and that key is wrapped for the recipient:
 
 ```
-body       = AES-GCM(K, zero nonce, plaintext)
-keys entry = recipient_id (32) || sealed K (113)
-sealed K   = P-256 ephemeral public key (65) || AES-GCM of K (48)
+K          = 32 random bytes, one message only
+body       = AES-GCM(K, zero nonce, plaintext)                    plaintext + 16 bytes
+
+E          = a fresh P-256 ephemeral pair, one message only
+K_wrap     = HKDF-SHA256(ikm  = ECDH(E private, recipient agreement key),
+                         salt = E public key,
+                         info = "ios-chat-key-v1",
+                         L    = 32)
+sealed K   = E public key (65) || AES-GCM(K_wrap, zero nonce, K)   65 + 48
+keys entry = recipient_id (32) || sealed K (113)                   145
 ```
 
-The zero nonce is safe because `K` is random and used for exactly one message.
+This is the construction an address blob already uses, written out in [the client package](../client/README.md), with its own `info` string so a wrapped key is never a blob key and the two cannot be swapped.
+
+Both zero nonces are safe, for the same reason in both places: `K` is random and encrypts exactly one body, and `K_wrap` is derived from an ephemeral pair generated for exactly one message. A nonce is reused only when a key is, and neither key outlives its message.
 
 `keys` holds exactly one entry, the recipient, and a decoder refuses a `keys` field whose length is not 145 or whose `recipient_id` is not the local identity. A second entry would mean a second reader of the same body, which this scope does not have.
 
-Wrapping `K` rather than encrypting the plaintext directly keeps the signed bytes independent of the key agreement: `K` is sealed to an ephemeral public key, so the sender's long term agreement key never derives the body key, and a compromise of that key later does not open stored messages.
+Wrapping `K` rather than encrypting the plaintext directly keeps the signed bytes independent of the key agreement. The sender's long term agreement key is never involved, so losing it opens nothing. The recipient's is, which is the limit of this construction: recovered later, it unwraps every `K` ever sent to that recipient. Recorded traffic is out of its reach anyway, because the frame payload carrying all of this is sealed again under the session keys of [session.md](session.md), and those die with the session. What it does reach is a message the recipient still stores.
 
 ## Size limits
 
