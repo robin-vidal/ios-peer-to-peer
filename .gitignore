@@ -8,3 +8,4 @@ build/
 client/pubspec.lock
 *.local.md
 client/test-report.json
+app/test-report.json

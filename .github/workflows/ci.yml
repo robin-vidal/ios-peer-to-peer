@@ -9,12 +9,16 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   go:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
         with:
           go-version-file: registry-server/go.mod
           cache: false
@@ -28,11 +32,11 @@ jobs:
   dart:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: dart-lang/setup-dart@v1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: dart-lang/setup-dart@2286a0c042b44434fe26d292bbce8d34f7ec662b
         with:
           sdk: 3.14.0
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
         with:
           go-version-file: registry-server/go.mod
           cache: false
@@ -50,19 +54,13 @@ jobs:
         working-directory: client
         run: dart test --reporter github --file-reporter json:test-report.json
       - name: Refuse a skipped test
-        working-directory: client
-        run: |
-          skipped=$(jq -n '[inputs | select(.type == "testDone" and .skipped == true and .hidden != true)] | length' test-report.json)
-          if [ "$skipped" -ne 0 ]; then
-            echo "$skipped test(s) were skipped, the integration test must run here"
-            exit 1
-          fi
+        run: .github/scripts/refuse-skipped-tests.sh client/test-report.json
 
   flutter:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: subosito/flutter-action@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
         with:
           channel: stable
           flutter-version: 3.50.0
@@ -74,4 +72,6 @@ jobs:
         run: flutter analyze
       - name: Test
         working-directory: app
-        run: flutter test
+        run: flutter test --reporter github --file-reporter json:test-report.json
+      - name: Refuse a skipped test
+        run: .github/scripts/refuse-skipped-tests.sh app/test-report.json
