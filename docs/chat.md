@@ -2,7 +2,7 @@
 
 Messages travel peer to peer. The registry never sees one, so every guarantee comes from the message format itself. This is a client side convention: no server implements any of it.
 
-For address discovery, see [protocol.md](protocol.md). For how these bytes are delimited on the peer connection, see [frames.md](frames.md).
+For address discovery, see [protocol.md](protocol.md). For how these bytes are delimited on the peer connection, see [frames.md](frames.md), and for the session they are sealed under, [session.md](session.md).
 
 ## Scope
 
@@ -61,7 +61,7 @@ Wrapping `K` rather than encrypting the plaintext directly keeps the signed byte
 
 ## Size limits
 
-The plaintext body is capped at 63 KiB, 64512 bytes, and a longer one is refused at composition. The cap comes from the frame layer, where a `message` payload cannot exceed `MAX_PAYLOAD`, 65536 bytes, see [frames.md](frames.md). The remaining kilobyte covers the signed header fields, the wrapped key, the GCM tag, the signature and the two length prefixes the frame payload adds.
+The plaintext body is capped at 63 KiB, 64512 bytes, and a longer one is refused at composition. The cap comes from the frame layer, where a `message` payload cannot exceed `MAX_PAYLOAD`, 65536 bytes, see [frames.md](frames.md). The remaining kilobyte covers the signed header fields, the wrapped key, the GCM tag of the body, the signature, the two length prefixes the frame payload adds and the 16 byte tag of the session seal. That overhead is 368 bytes against the 1024 the cap leaves, so a body at the limit frames to 64880 bytes and 656 remain unused.
 
 Refusing at composition rather than at framing is deliberate. A message checked only on the way out has already been signed, given an `msg_id` and stored before it is found to be unsendable.
 

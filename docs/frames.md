@@ -1,6 +1,6 @@
 # Peer frame format
 
-Peers exchange binary frames over a direct connection. The registry is not involved: it hands out an address and nothing else. For address discovery see [protocol.md](protocol.md), for what travels inside a frame see [chat.md](chat.md).
+Peers exchange binary frames over a direct connection. The registry is not involved: it hands out an address and nothing else. For address discovery see [protocol.md](protocol.md), for the session that opens before any chat traffic see [session.md](session.md), for what travels inside a frame see [chat.md](chat.md).
 
 This document specifies framing only. It defines where one frame ends and the next begins, and nothing about what the payload means.
 
@@ -8,7 +8,7 @@ This document specifies framing only. It defines where one frame ends and the ne
 
 Framing assumes an ordered, reliable byte stream and assumes nothing else. TLS sits under it as a separate layer, added by the peer session, and neither layer reads a field of the other. A frame is not a TLS record: a frame can span several records and several frames can arrive in one record, so a reader never treats a read boundary as a frame boundary.
 
-Framing provides no confidentiality, no authenticity and no replay protection. All three come from elsewhere: the transport from TLS with both ends pinning the other's signing key, the message content from its own signature as specified in [chat.md](chat.md). A reader that trusts a frame because it parsed cleanly has misread this document.
+Framing provides no confidentiality, no authenticity and no replay protection. All three come from elsewhere: the transport from TLS with both ends pinning the other's signing key, the payload from the session keys of [session.md](session.md) once the handshake has completed, the message content from its own signature as specified in [chat.md](chat.md). A reader that trusts a frame because it parsed cleanly has misread this document.
 
 ## Header
 
@@ -46,9 +46,9 @@ A sender is bound by the same number. The plaintext body of a message is capped 
 
 | Type | Name | Payload | Min | Max |
 |---|---|---|---|---|
-| `0x01` | `handshake` | one session handshake step | 137 | 1024 |
-| `0x02` | `message` | `field(signed) \|\| field(sig)` of a chat message | 76 | `MAX_PAYLOAD` |
-| `0x03` | `ack` | `field(signed) \|\| field(sig)` of an acknowledgement | 76 | 1024 |
+| `0x01` | `handshake` | one session handshake step | 36 | 1024 |
+| `0x02` | `message` | sealed `field(signed) \|\| field(sig)` of a chat message | 92 | `MAX_PAYLOAD` |
+| `0x03` | `ack` | sealed `field(signed) \|\| field(sig)` of an acknowledgement | 92 | 1024 |
 | `0x04` | `keepalive` | empty | 0 | 0 |
 | `0x05` | `heads` | reserved, never sent | refused | refused |
 | `0x06` | `chunk` | reserved, never sent | refused | refused |
@@ -56,7 +56,7 @@ A sender is bound by the same number. The plaintext body of a message is capped 
 
 Both bounds are inclusive. The minimum exists so that a frame cannot be empty where its type requires content: `length` zero on a `message` passes every check that only tests an upper bound, and fails one layer higher, inside a parser that was reached for nothing.
 
-`handshake` is at least a 65 byte public key and a 64 byte signature behind their two length prefixes. `message` and `ack` are at least two length prefixes, a 64 byte signature and a non empty signed block: 4 + 4 + 4 + 64. The message layer enforces the rest of their shape, since framing does not parse the payload.
+The three handshake steps have three different sizes, 173, 173 and 36 bytes, and the smallest is a 32 byte confirmation behind one length prefix: 4 + 32. Framing checks that bound only, and [session.md](session.md) checks the exact size of the step it expects next. `message` and `ack` are at least two length prefixes, a 64 byte signature, a non empty signed block and the 16 byte GCM tag of the seal: 4 + 4 + 4 + 64 + 16. The message layer enforces the rest of their shape, since framing does not parse the payload.
 
 `0x00` is not a type and is refused, so a zero filled buffer is never a valid frame.
 
@@ -66,13 +66,15 @@ Both bounds are inclusive. The minimum exists so that a frame cannot be empty wh
 
 ### handshake
 
-Carries one step of the peer session handshake: an ephemeral P-256 public key with a signature over it. The handshake is specified on its own, outside this document, since framing must not depend on which key agreement is in use.
+Carries one step of the peer session handshake: an ephemeral P-256 public key with a signature over it, or the confirmation that closes it. The steps and their key schedule are specified in [session.md](session.md), outside this document, since framing must not depend on which key agreement is in use.
 
 A `handshake` frame after the session is established is refused. A `message`, `ack` or `keepalive` frame before it is established is refused.
 
 ### message and ack
 
-The payload is the signed bytes and the signature, each length prefixed, exactly as produced by the message layer. Framing does not parse further. In particular a reader does not derive `msg_id` from the frame: it derives it from the signed bytes, after the signature verifies.
+The payload is the signed bytes and the signature, each length prefixed, exactly as produced by the message layer, sealed under the session key for this direction as specified in [session.md](session.md). Framing neither opens the seal nor parses what is under it. In particular a reader does not derive `msg_id` from the frame: it derives it from the signed bytes, after the seal opens and the signature verifies.
+
+The 8 header bytes are the additional authenticated data of that seal, so a type or a `length` edited in flight breaks the tag. Framing still checks the header on its own first: the bounds above are tested before anything is allocated, and long before a key is used.
 
 ### keepalive
 
