@@ -1,6 +1,6 @@
 # Registry protocol
 
-The registry is a rendezvous service. Peers use it to discover each other's address, then talk directly. It never carries chat traffic.
+The registry is a rendezvous service. Peers use it to discover each other's address, then talk directly over their own connection, framed as in [frames.md](frames.md). It never carries chat traffic.
 
 Every address it stores is encrypted for a single contact, so the registry holds bytes it cannot read.
 
