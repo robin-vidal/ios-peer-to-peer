@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/robin-vidal/ios-peer-to-peer/actions/workflows/ci.yml"><img src="https://github.com/robin-vidal/ios-peer-to-peer/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
-  <a href="https://github.com/robin-vidal/ios-peer-to-peer/tags"><img src="https://img.shields.io/github/v/tag/robin-vidal/ios-peer-to-peer?label=version&color=025039" alt="version"></a>
+  <a href="https://github.com/robin-vidal/ios-peer-to-peer/tags"><img src="https://img.shields.io/github/v/tag/robin-vidal/ios-peer-to-peer?label=version&color=0071E3" alt="version"></a>
 </p>
 
 # ios-peer-to-peer
