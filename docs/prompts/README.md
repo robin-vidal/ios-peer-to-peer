@@ -9,8 +9,12 @@ Each member owns one file and nobody else writes in it.
 | Member | File |
 | --- | --- |
 | robin-vidal | [robin-vidal.md](robin-vidal.md) |
+| corentin-dupaigne | [corentin-dupaigne.md](corentin-dupaigne.md) |
+| marie-lou-allain | [marie-lou-allain.md](marie-lou-allain.md) |
+| romain-vidal | [romain-vidal.md](romain-vidal.md) |
+| yasmine-benali | [yasmine-benali.md](yasmine-benali.md) |
 
-Add your line when you create your file. The file is named after your GitHub
+A file that holds no prompt yet is a file whose owner has not written their journal, not a file to delete. The file is named after your GitHub
 handle, lowercase, so that `git log` and the index agree on who wrote what.
 
 Markdown has no include directive, so this index links the member files instead
@@ -19,22 +23,21 @@ parts, not as a summary: nothing is repeated here.
 
 ## Method
 
-An entry is written in the same commit as the work it describes. A journal
+A prompt is recorded verbatim. Same wording, same typos, same language. A
+prompt that is cleaned up afterwards no longer proves what was asked.
+
+Order is chronological inside a file.
+
+An entry is added in the same commit as the work it describes. A journal
 reconstructed at the end of the project is worth nothing, because the prompt
 that was rejected is exactly the one nobody remembers.
 
-Each entry carries four things.
-
-- The prompt, verbatim. Same wording, same typos, same language. A prompt that
-  is cleaned up afterwards no longer proves what was asked.
-- The intent. What the prompt was trying to obtain, in one sentence.
-- Where it landed. The file, the test or the section of a document that came
-  out of it. An entry that produced nothing says so.
-- The verdict. Accepted, accepted after correction, or rejected, and the
-  reason. A rejection is the most useful line in the journal: it records a
-  wrong answer that did not reach the code.
-
-Order is chronological inside a file.
+Anything beyond the prompt itself is commentary: what the prompt was after,
+what it produced, whether the output was kept, corrected or thrown away. That
+commentary is written by the member, by hand, and never by a model. A model
+describing the intent behind a prompt it answered is the one thing this journal
+cannot contain, since the point of the exercise is that a human judged the
+output.
 
 ## Rules
 
@@ -46,7 +49,3 @@ the entry without it and say that the value was redacted.
 The journal describes how the system was designed. It is not the place for a
 finding from the security audit, for an attack path, or for anything learned
 about another group during the cross audit. Those stay in the handover of #55.
-
-A model answer is not a source. When an entry says that something was checked
-in the official documentation, the check happened, and the entry names what was
-read.
