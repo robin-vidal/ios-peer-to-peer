@@ -1,4 +1,4 @@
-package com.example.p2p_chat
+package fr.epita.p2pchat
 
 import io.flutter.embedding.android.FlutterActivity
 
