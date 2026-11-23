@@ -10,12 +10,13 @@ Each member owns one file and nobody else writes in it.
 | --- | --- |
 | robin-vidal | [robin-vidal.md](robin-vidal.md) |
 | corentin-dupaigne | [corentin-dupaigne.md](corentin-dupaigne.md) |
-| marie-lou-allain | [marie-lou-allain.md](marie-lou-allain.md) |
-| romain-vidal | [romain-vidal.md](romain-vidal.md) |
-| yasmine-benali | [yasmine-benali.md](yasmine-benali.md) |
+| MarieLoou | [MarieLoou.md](MarieLoou.md) |
+| ozone92 | [ozone92.md](ozone92.md) |
+| ybenalii | [ybenalii.md](ybenalii.md) |
 
 A file that holds no prompt yet is a file whose owner has not written their journal, not a file to delete. The file is named after your GitHub
-handle, lowercase, so that `git log` and the index agree on who wrote what.
+handle, spelled the way GitHub spells it, so that `git log` and the index
+agree on who wrote what.
 
 Markdown has no include directive, so this index links the member files instead
 of inlining them. Read it as the table of contents of one document split in
