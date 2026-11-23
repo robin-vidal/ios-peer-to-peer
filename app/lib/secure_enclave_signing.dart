@@ -31,6 +31,25 @@ class SecureEnclaveSigning {
     return _publicKey(await _invoke('getPublicKey'));
   }
 
+  Future<Uint8List> createOrLoadAgreementKey() async {
+    final value = await _invoke('createOrLoadAgreementKey');
+    if (value is! Uint8List && value is! List<int>) {
+      throw const SecureEnclaveSigningException(
+        'invalid-agreement-key',
+        'The native plugin returned no agreement key.',
+      );
+    }
+
+    final key = Uint8List.fromList(value as List<int>);
+    if (key.length != 32) {
+      throw SecureEnclaveSigningException(
+        'invalid-agreement-key',
+        'The agreement key must be exactly 32 bytes, got ${key.length}.',
+      );
+    }
+    return key;
+  }
+
   Future<Uint8List> signDigest(Uint8List digest) async {
     if (digest.length != 32) {
       throw const SecureEnclaveSigningException(

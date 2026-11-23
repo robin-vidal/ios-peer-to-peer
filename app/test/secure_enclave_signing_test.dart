@@ -85,6 +85,70 @@ void main() {
       expect(signature.every((byte) => byte == 0xA5), isTrue);
     });
 
+    test('createOrLoadAgreementKey returns a 32-byte scalar', () async {
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(
+        messengerChannel,
+        (call) async => Uint8List(32)..[31] = 1,
+      );
+
+      expect(
+        await SecureEnclaveSigning().createOrLoadAgreementKey(),
+        hasLength(32),
+      );
+    });
+
+    test('agreement key must be 32 bytes', () async {
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(
+        messengerChannel,
+        (call) async => Uint8List(31),
+      );
+
+      await expectLater(
+        SecureEnclaveSigning().createOrLoadAgreementKey(),
+        throwsA(
+          isA<SecureEnclaveSigningException>().having(
+            (error) => error.code,
+            'code',
+            'invalid-agreement-key',
+          ),
+        ),
+      );
+    });
+
+    test(
+      'availability and key creation failures are separate results',
+      () async {
+        final messenger =
+            TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+        messenger.setMockMethodCallHandler(messengerChannel, (call) async {
+          if (call.method == 'isAvailable') {
+            return true;
+          }
+          throw PlatformException(
+            code: 'key-creation-failed',
+            message: 'creation failed',
+          );
+        });
+
+        final signing = SecureEnclaveSigning();
+        expect(await signing.isAvailable, isTrue);
+        await expectLater(
+          signing.createOrLoad(),
+          throwsA(
+            isA<SecureEnclaveSigningException>().having(
+              (error) => error.code,
+              'code',
+              'key-creation-failed',
+            ),
+          ),
+        );
+      },
+    );
+
     test('native PlatformException codes remain distinguishable', () async {
       final messenger =
           TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;

@@ -8,16 +8,21 @@ import 'contact_card.dart';
 import 'crypto.dart';
 import 'exceptions.dart';
 
+typedef IdentityDigestSigner = Future<Uint8List> Function(Uint8List digest);
+
 class Identity {
   const Identity._({
-    required this.signingKey,
+    required ECPrivateKey? signingKey,
+    required IdentityDigestSigner? digestSigner,
     required this.agreementKey,
     required this.signingPublicKey,
     required this.agreementPublicKey,
     required this.id,
-  });
+  })  : _signingKey = signingKey,
+        _digestSigner = digestSigner;
 
-  final ECPrivateKey signingKey;
+  final ECPrivateKey? _signingKey;
+  final IdentityDigestSigner? _digestSigner;
   final ECPrivateKey agreementKey;
   final Uint8List signingPublicKey;
   final Uint8List agreementPublicKey;
@@ -27,6 +32,33 @@ class Identity {
     return _from(
       generateKeyPair().privateKey,
       generateKeyPair().privateKey,
+    );
+  }
+
+  static Future<Identity> fromExternalSigner({
+    required List<int> signingPublicKey,
+    required List<int> agreementSeed,
+    required IdentityDigestSigner signDigest,
+  }) async {
+    if (agreementSeed.length != scalarLength) {
+      throw const ProtocolException('an agreement seed must be 32 bytes');
+    }
+
+    decodePublicKey(signingPublicKey);
+    final agreementKey = privateKeyFromScalar(agreementSeed);
+    final signingBytes = Uint8List.fromList(signingPublicKey);
+    final agreementPublicKey = encodePublicKey(publicKeyOf(agreementKey));
+
+    return Identity._(
+      signingKey: null,
+      digestSigner: signDigest,
+      agreementKey: agreementKey,
+      signingPublicKey: signingBytes,
+      agreementPublicKey: agreementPublicKey,
+      id: await deriveId(
+        signingPublicKey: signingBytes,
+        agreementPublicKey: agreementPublicKey,
+      ),
     );
   }
 
@@ -53,6 +85,7 @@ class Identity {
 
     return Identity._(
       signingKey: signing,
+      digestSigner: null,
       agreementKey: agreement,
       signingPublicKey: signingPublicKey,
       agreementPublicKey: agreementPublicKey,
@@ -80,10 +113,23 @@ class Identity {
       );
 
   Future<Uint8List> sign(List<int> message) async {
-    return signMessage(key: signingKey, message: message);
+    final signer = _digestSigner;
+    final signature = signer == null
+        ? signMessage(key: _signingKey!, message: message)
+        : await signer(sha256Of(message));
+    if (signature.length != signatureLength) {
+      throw const ProtocolException('a signature must be 64 bytes');
+    }
+    return signature;
   }
 
   Future<Map<String, String>> toJson() async {
+    final signingKey = _signingKey;
+    if (signingKey == null) {
+      throw const ProtocolException(
+        'an identity with an external signing key cannot be serialized',
+      );
+    }
     return <String, String>{
       'version': '2',
       'signingSeed': base64.encode(scalarToBytes(signingKey.d!)),

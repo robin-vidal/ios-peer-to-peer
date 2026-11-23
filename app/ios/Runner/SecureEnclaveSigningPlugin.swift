@@ -5,7 +5,8 @@ import Security
 
 final class SecureEnclaveSigningPlugin: NSObject, FlutterPlugin {
   private static let channelName = "fr.epita.p2pchat/secure_enclave_signing"
-  private static let keychainAccount = "long-term-p256-signing-key"
+  private static let signingKeychainAccount = "long-term-p256-signing-key"
+  private static let agreementKeychainAccount = "long-term-p256-agreement-key"
   private static let keychainService = "fr.epita.p2pchat.signing"
 
   static func register(with registry: FlutterPluginRegistry) {
@@ -34,6 +35,8 @@ final class SecureEnclaveSigningPlugin: NSObject, FlutterPlugin {
       loadPublicKey(result: result)
     case "signDigest":
       signDigest(call.arguments, result: result)
+    case "createOrLoadAgreementKey":
+      createOrLoadAgreementKey(result: result)
     case "deleteIdentity":
       deleteIdentity(result: result)
     default:
@@ -53,13 +56,16 @@ final class SecureEnclaveSigningPlugin: NSObject, FlutterPlugin {
 
     do {
       let key: SecureEnclave.P256.Signing.PrivateKey
-      if let stored = try loadWrappedKey() {
+      if let stored = try loadValue(account: Self.signingKeychainAccount) {
         if let loaded = try? SecureEnclave.P256.Signing.PrivateKey(
           dataRepresentation: stored
         ) {
           key = loaded
         } else {
-          deleteStoredReference()
+          let deleteStatus = deleteStoredValue(account: Self.signingKeychainAccount)
+          guard isDeleted(deleteStatus) else {
+            throw SigningPluginError.keychainStatus(deleteStatus)
+          }
           do {
             key = try createPrivateKey()
           } catch {
@@ -114,8 +120,32 @@ final class SecureEnclaveSigningPlugin: NSObject, FlutterPlugin {
       compactRepresentable: true,
       accessControl: accessControl
     )
-    try storeWrappedKey(key.dataRepresentation)
+    try storeValue(key.dataRepresentation, account: Self.signingKeychainAccount)
     return key
+  }
+
+  private func createOrLoadAgreementKey(result: @escaping FlutterResult) {
+    do {
+      let key: P256.KeyAgreement.PrivateKey
+      if let stored = try loadValue(account: Self.agreementKeychainAccount),
+         let loaded = try? P256.KeyAgreement.PrivateKey(rawRepresentation: stored) {
+        key = loaded
+      } else {
+        let generated = P256.KeyAgreement.PrivateKey()
+        try storeValue(
+          generated.rawRepresentation,
+          account: Self.agreementKeychainAccount
+        )
+        key = generated
+      }
+      result(FlutterStandardTypedData(bytes: key.rawRepresentation))
+    } catch {
+      result(FlutterError(
+        code: "agreement-key-failed",
+        message: "The agreement key could not be loaded or created.",
+        details: String(describing: error)
+      ))
+    }
   }
 
   private func loadPublicKey(result: @escaping FlutterResult) {
@@ -185,39 +215,47 @@ final class SecureEnclaveSigningPlugin: NSObject, FlutterPlugin {
   }
 
   private func deleteIdentity(result: @escaping FlutterResult) {
-    if deleteStoredReference() {
+    let signingStatus = deleteStoredValue(account: Self.signingKeychainAccount)
+    let agreementStatus = deleteStoredValue(account: Self.agreementKeychainAccount)
+    if isDeleted(signingStatus) && isDeleted(agreementStatus) {
       result(true)
       return
     }
     result(FlutterError(
       code: "key-delete-failed",
-      message: "The Secure Enclave signing key could not be deleted.",
-      details: nil
+      message: "The identity keys could not be deleted.",
+      details: [
+        "signingStatus": signingStatus,
+        "agreementStatus": agreementStatus,
+      ]
     ))
   }
 
-  private func deleteStoredReference() -> Bool {
+  private func deleteStoredValue(account: String) -> OSStatus {
     let query: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: Self.keychainService,
-      kSecAttrAccount as String: Self.keychainAccount,
+      kSecAttrAccount as String: account,
     ]
-    let status = SecItemDelete(query as CFDictionary)
-    return status == errSecSuccess || status == errSecItemNotFound
+    return SecItemDelete(query as CFDictionary)
+  }
+
+  private func isDeleted(_ status: OSStatus) -> Bool {
+    status == errSecSuccess || status == errSecItemNotFound
   }
 
   private func loadPrivateKey() throws -> SecureEnclave.P256.Signing.PrivateKey? {
-    guard let stored = try loadWrappedKey() else {
+    guard let stored = try loadValue(account: Self.signingKeychainAccount) else {
       return nil
     }
     return try SecureEnclave.P256.Signing.PrivateKey(dataRepresentation: stored)
   }
 
-  private func loadWrappedKey() throws -> Data? {
+  private func loadValue(account: String) throws -> Data? {
     let query: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: Self.keychainService,
-      kSecAttrAccount as String: Self.keychainAccount,
+      kSecAttrAccount as String: account,
       kSecReturnData as String: true,
       kSecMatchLimit as String: kSecMatchLimitOne,
     ]
@@ -233,20 +271,24 @@ final class SecureEnclaveSigningPlugin: NSObject, FlutterPlugin {
     return data
   }
 
-  private func storeWrappedKey(_ data: Data) throws {
+  private func storeValue(_ data: Data, account: String) throws {
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: Self.keychainService,
+      kSecAttrAccount as String: account,
+    ]
+    let deleteStatus = SecItemDelete(query as CFDictionary)
+    guard isDeleted(deleteStatus) else {
+      throw SigningPluginError.keychainStatus(deleteStatus)
+    }
+
     let attributes: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: Self.keychainService,
-      kSecAttrAccount as String: Self.keychainAccount,
+      kSecAttrAccount as String: account,
       kSecValueData as String: data,
       kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
     ]
-
-    SecItemDelete([
-      kSecClass as String: kSecClassGenericPassword,
-      kSecAttrService as String: Self.keychainService,
-      kSecAttrAccount as String: Self.keychainAccount,
-    ] as CFDictionary)
 
     let status = SecItemAdd(attributes as CFDictionary, nil)
     guard status == errSecSuccess else {

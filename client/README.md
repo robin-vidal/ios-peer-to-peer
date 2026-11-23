@@ -55,6 +55,8 @@ await client.close();
 
 A key held this way is a key the application can read. An enclave backed identity keeps the signing scalar in hardware instead, and this class is then the fallback for a peer that has no enclave.
 
+An app with an external signing key can construct an identity with `Identity.fromExternalSigner`. It supplies the public signing key, the 32 byte agreement seed, and a callback that signs a 32 byte SHA-256 digest. The identity retains no software signing key, and `toJson` refuses to serialize it. The app is responsible for persisting the agreement seed securely.
+
 `connect` compares the id the server returned against the locally derived one and fails if they differ.
 
 ## Contact cards
