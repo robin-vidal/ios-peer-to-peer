@@ -1,11 +1,15 @@
 import 'package:material_ui/material_ui.dart';
 
+import 'app_identity.dart';
+
 void main() {
   runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({super.key, this.identityLoader});
+
+  final Future<String> Function()? identityLoader;
 
   // This widget is the root of your application.
   @override
@@ -30,13 +34,16 @@ class MyApp extends StatelessWidget {
         // tested with just a hot reload.
         colorScheme: .fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: MyHomePage(
+        title: 'Flutter Demo Home Page',
+        identityLoader: identityLoader,
+      ),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+  const MyHomePage({super.key, required this.title, this.identityLoader});
 
   // This widget is the home page of your application. It is stateful, meaning
   // that it has a State object (defined below) that contains fields that affect
@@ -48,6 +55,7 @@ class MyHomePage extends StatefulWidget {
   // always marked "final".
 
   final String title;
+  final Future<String> Function()? identityLoader;
 
   @override
   State<MyHomePage> createState() => _MyHomePageState();
@@ -55,6 +63,24 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   int _counter = 0;
+  late final Future<String> _identityId;
+  bool _keyChanged = false;
+  bool _keyChangedAlertShown = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _identityId = (widget.identityLoader ?? _loadAppIdentity)();
+  }
+
+  Future<String> _loadAppIdentity() async {
+    final identity = await createAppIdentity(
+      onKeyChanged: () {
+        _keyChanged = true;
+      },
+    );
+    return identity.id;
+  }
 
   void _incrementCounter() {
     setState(() {
@@ -104,6 +130,45 @@ class _MyHomePageState extends State<MyHomePage> {
           // wireframe for each widget.
           mainAxisAlignment: .center,
           children: [
+            FutureBuilder<String>(
+              future: _identityId,
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Text(
+                    'Secure identity setup failed: ${snapshot.error}',
+                  );
+                }
+                if (!snapshot.hasData) {
+                  return const Text('Initializing secure identity...');
+                }
+                if (_keyChanged && !_keyChangedAlertShown) {
+                  _keyChangedAlertShown = true;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!mounted) return;
+                    showDialog<void>(
+                      context: context,
+                      builder: (dialogContext) => AlertDialog(
+                        title: const Text('Identity key changed'),
+                        content: const Text(
+                          'A new signing or agreement key replaced the previous local identity. '
+                          'Peers will not be told this change is continuity.',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () =>
+                                Navigator.of(dialogContext).pop(),
+                            child: const Text('OK'),
+                          ),
+                        ],
+                      ),
+                    );
+                  });
+                }
+                return Text(
+                  'Secure identity ready: ${snapshot.data!.substring(0, 8)}',
+                );
+              },
+            ),
             const Text('You have pushed the button this many times:'),
             Text(
               '$_counter',

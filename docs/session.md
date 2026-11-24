@@ -119,6 +119,21 @@ A failed handshake leaves nothing behind: the ephemeral private key, `PRK` and e
 
 Refusals are silent for the reason given in [frames.md](frames.md): a reply from a parser reachable before authentication tells a prober which check it tripped.
 
+## Signing key lifecycle
+
+The app creates exactly one long term signing key in the Secure Enclave for its iOS identity. The key is not exported, serialized or stored as a scalar. The plugin keeps a persistent reference to it under one application-specific key tag and returns only its 65 byte x963 public key.
+
+The Android development target follows the same no-software-signing-fallback rule: it uses an Android Keystore P-256 key and refuses to initialize unless Android reports the key is hardware-backed and can sign a 32 byte digest. Android's agreement key remains software-backed, as on iOS. Android persists a public-key baseline with app preferences to detect key replacement while that state is retained; uninstalling the app removes both app preferences and Keystore keys, so Android cannot detect an uninstall/reinstall if the baseline is not restored.
+
+Key lifecycle is:
+
+- **First launch:** create `SecureEnclave.P256.Signing.PrivateKey`. If creation fails, keep the identity uninitialized and report the creation failure separately from `SecureEnclave.isAvailable`.
+- **Normal launch, restart and suspension:** load the existing key by its fixed key tag. Never generate a replacement unless the key cannot be loaded and no key from the tag exists.
+- **App reinstall:** the plugin first tries to load the existing application key. If it is still available, preserve the same identity. If the device or restore state has dropped or invalidated the key, create a replacement key and treat it as a new identity: do not silently retain old contacts or address history as belonging to the same identity. The user-facing key-changed alert is the notification for peers; iOS cannot prove that an old and a new key belong to the same person.
+- **Explicit delete identity:** delete the Secure Enclave signing key, the locally stored agreement key, contact cards, conversations and pending delivery state. The app must require confirmation and must also invalidate the old public identity in the user interface immediately. Deletion is local; it cannot erase the identity from another peer's contact list or from data already delivered to that peer.
+
+An app reinstall is not a command to regenerate the signing key. A separate key after a reinstall means the key did not survive loading or restoration and the app must not claim continuity with the previous public key. Backups must never export the signing private scalar, because no scalar exists for the plugin to export.
+
 ## Sealed payloads
 
 Once step 3 is verified, the payload of every `message` and `ack` frame is sealed:

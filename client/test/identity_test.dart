@@ -67,6 +67,29 @@ void main() {
     );
   });
 
+  test('an external signer receives the SHA-256 digest and cannot serialize', () async {
+    final signing = await Identity.generate();
+    final agreementSeed = scalarToBytes(BigInt.from(7));
+    Uint8List? receivedDigest;
+    final identity = await Identity.fromExternalSigner(
+      signingPublicKey: signing.signingPublicKey,
+      agreementSeed: agreementSeed,
+      signDigest: (digest) async {
+        receivedDigest = digest;
+        return Uint8List.fromList(List<int>.filled(signatureLength, 1));
+      },
+    );
+
+    final signature = await identity.sign(<int>[1, 2, 3]);
+
+    expect(signature, hasLength(signatureLength));
+    expect(receivedDigest, sha256Of(<int>[1, 2, 3]));
+    await expectLater(
+      identity.toJson(),
+      throwsA(isA<ProtocolException>()),
+    );
+  });
+
   test('a signature of the wrong length is refused', () async {
     final identity = await Identity.generate();
     final message = <int>[1, 2, 3, 4];
