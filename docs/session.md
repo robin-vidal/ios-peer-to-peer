@@ -123,6 +123,8 @@ Refusals are silent for the reason given in [frames.md](frames.md): a reply from
 
 The app creates exactly one long term signing key in the Secure Enclave for its iOS identity. The key is not exported, serialized or stored as a scalar. The plugin keeps a persistent reference to it under one application-specific key tag and returns only its 65 byte x963 public key.
 
+The Android development target follows the same no-software-signing-fallback rule: it uses an Android Keystore P-256 key and refuses to initialize unless Android reports the key is hardware-backed and can sign a 32 byte digest. Android's agreement key remains software-backed, as on iOS. Android persists a public-key baseline with app preferences to detect key replacement while that state is retained; uninstalling the app removes both app preferences and Keystore keys, so Android cannot detect an uninstall/reinstall if the baseline is not restored.
+
 Key lifecycle is:
 
 - **First launch:** create `SecureEnclave.P256.Signing.PrivateKey`. If creation fails, keep the identity uninitialized and report the creation failure separately from `SecureEnclave.isAvailable`.

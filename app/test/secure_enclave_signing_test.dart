@@ -20,6 +20,7 @@ void main() {
       messenger.setMockMethodCallHandler(const MethodChannel(channelName), (
         call,
       ) async {
+        if (call.method == 'isAvailable') return true;
         if (call.method == 'createOrLoad') {
           return <Object?, Object?>{
             'publicKey': Uint8List.fromList(
@@ -53,6 +54,19 @@ void main() {
             (error) => error.code,
             'code',
             'invalid-public-key',
+          ),
+        ),
+      );
+    });
+
+    test('missing native plugin becomes an explicit signing error', () async {
+      await expectLater(
+        SecureEnclaveSigning().createOrLoad(),
+        throwsA(
+          isA<SecureEnclaveSigningException>().having(
+            (error) => error.code,
+            'code',
+            'native-plugin-unavailable',
           ),
         ),
       );

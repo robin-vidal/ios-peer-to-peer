@@ -20,8 +20,16 @@ class SecureEnclaveSigning {
   final MethodChannel _channel;
   bool keyChanged = false;
 
-  Future<bool> get isAvailable =>
-      _channel.invokeMethod<bool>('isAvailable').then((value) => value == true);
+  Future<bool> get isAvailable async {
+    final value = await _invoke('isAvailable');
+    if (value is! bool) {
+      throw const SecureEnclaveSigningException(
+        'invalid-native-result',
+        'The native plugin returned an invalid availability result.',
+      );
+    }
+    return value;
+  }
 
   Future<Uint8List> createOrLoad() async {
     final result = await _invokeMap('createOrLoad');
@@ -109,10 +117,15 @@ class SecureEnclaveSigning {
   Future<Object?> _invoke(String method, [Object? arguments]) async {
     try {
       return await _channel.invokeMethod<Object?>(method, arguments);
+    } on MissingPluginException catch (error) {
+      throw SecureEnclaveSigningException(
+        'native-plugin-unavailable',
+        'The native identity plugin is unavailable on this platform: ${error.message ?? method}.',
+      );
     } on PlatformException catch (error) {
       throw SecureEnclaveSigningException(
         error.code,
-        error.message ?? 'The Secure Enclave signing operation failed.',
+        error.message ?? 'The native hardware-backed signing operation failed.',
       );
     }
   }

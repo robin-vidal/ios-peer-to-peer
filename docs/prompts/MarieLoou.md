@@ -75,3 +75,10 @@ Base on session.md to do the fix
 
 I think this code can be refactored.
 
+---
+
+no software fallback. contradicts app/README.md:8, `isAvailable` never called, `MissingPluginException` escape `_invoke` which only catch `PlatformException`. android is also one of our dev target.
+
+---
+
+

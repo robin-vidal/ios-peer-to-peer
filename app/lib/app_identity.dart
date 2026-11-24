@@ -8,6 +8,12 @@ Future<Identity> createAppIdentity({
 }) async {
   final secureSigning = signing ?? SecureEnclaveSigning();
   secureSigning.keyChanged = false;
+  if (!await secureSigning.isAvailable) {
+    throw const SecureEnclaveSigningException(
+      'secure-hardware-unavailable',
+      'A hardware-backed P-256 signing key is not available on this device.',
+    );
+  }
   final signingPublicKey = await secureSigning.createOrLoad();
   final agreementSeed = await secureSigning.createOrLoadAgreementKey();
   if (secureSigning.keyChanged) {

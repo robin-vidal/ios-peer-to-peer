@@ -24,6 +24,8 @@ void main() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async {
             switch (call.method) {
+              case 'isAvailable':
+                return true;
               case 'createOrLoad':
                 return <Object?, Object?>{
                   'publicKey': softwareIdentity.signingPublicKey,
@@ -56,6 +58,8 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
           switch (call.method) {
+            case 'isAvailable':
+              return true;
             case 'createOrLoad':
               return <Object?, Object?>{
                 'publicKey': softwareIdentity.signingPublicKey,
@@ -78,4 +82,29 @@ void main() {
 
     expect(keyChanged, isTrue);
   });
+
+  test(
+    'app identity refuses to initialize without hardware-backed signing',
+    () async {
+      var keyCreationCalled = false;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            if (call.method == 'isAvailable') return false;
+            keyCreationCalled = true;
+            return null;
+          });
+
+      await expectLater(
+        createAppIdentity(signing: SecureEnclaveSigning()),
+        throwsA(
+          isA<SecureEnclaveSigningException>().having(
+            (error) => error.code,
+            'code',
+            'secure-hardware-unavailable',
+          ),
+        ),
+      );
+      expect(keyCreationCalled, isFalse);
+    },
+  );
 }
