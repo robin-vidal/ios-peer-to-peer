@@ -102,7 +102,11 @@ An ack states delivery to the device, not that anybody read it.
 
 A receiver accepts a message when `seq` is exactly the value it expects from that author, then increments.
 
-A higher `seq` means something is missing. The message is held, not dropped and not shown out of order, and the conversation is marked incomplete until the gap is filled by a retry. A lower or repeated `seq` is a duplicate and is dropped by `msg_id`.
+A higher `seq` means something is missing. The message is held, not dropped and not shown out of order, and the conversation is marked incomplete until the gap is filled by a retry. A lower or repeated `seq` whose `msg_id` is already known is a duplicate and is dropped.
+
+A lower `seq` carrying an `msg_id` that is not known is not a duplicate: it is a counter reset. The identity survives a reinstall in the Keychain while the message store does not, because the store is encrypted under a key that never leaves the device and never enters a backup. The contact then sends `seq` 1 again, with a new `msg_id` and a valid signature, while the receiver still expects `seq` N. Dropping that as a duplicate wedges the conversation on a gap no retry can fill.
+
+A counter reset is surfaced to the user in the same class as a changed key, and never accepted silently. The receiver holds the message, states that the contact's history was lost, and adopts the new counter only on an explicit acknowledgement, after which the expected value is the reset value plus one. Nothing in the format separates a lost store from a contact that rewound its counter on purpose, since both are signed by the same key, which is why the decision belongs to the user and not to the code.
 
 A gap that never fills is visible to the user rather than silently closed. The sender is the only party that can fill it, so a gap that persists means either a connection that never recovered or a counterparty that chose not to resend, and nothing in the format distinguishes those two.
 
@@ -129,6 +133,7 @@ A gap that never fills is visible to the user rather than silently closed. The s
 | Non receipt | a recipient can always withhold an ack. Delivery is provable when it cooperates, never its absence. |
 | Reading | an ack is produced by the device on delivery, and no signature can state that a person looked at the screen. |
 | Time | timestamps are unverifiable. Only `seq` is evidence of order. |
+| Telling a counter reset from a deliberate rewind | a reset and a rewind are both signed by the contact's own key, so no check separates them. Raised to the user instead, as a changed key is. |
 | Hiding addresses from a contact | a direct connection needs a destination. See [protocol.md](protocol.md). |
 
 ## What was cut, and why
