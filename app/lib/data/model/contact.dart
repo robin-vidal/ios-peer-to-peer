@@ -22,6 +22,18 @@ class Contact {
     return rows.map((row) => Contact.fromDatabase(row));
   }
 
+  static Future<bool> hasFingerprint(String fingerprint) async {
+    final database = await _db.getDb();
+    final rows = await database.query(
+      'Contact',
+      where: 'fingerprint = ?',
+      whereArgs: [fingerprint],
+      limit: 1,
+    );
+
+    return rows.isNotEmpty;
+  }
+
   Future<Contact> insert() async {
     if (_id == null) {
       final database = await _db.getDb();
