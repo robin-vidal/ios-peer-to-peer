@@ -13,7 +13,8 @@ class Scan extends StatefulWidget {
 }
 
 class _ScanState extends State<Scan> {
-  String? _scannedFingerprint;
+  String? _scannedFingerprint =
+      '11111111111111111111111111111111111111111111111111';
   String _nameText = '';
 
   void _handleBarcode(BarcodeCapture barcodes) {
@@ -71,32 +72,49 @@ class _ScanState extends State<Scan> {
       child: Column(
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               GestureDetector(
                 onTap: () {
                   Navigator.of(context).pop();
                 },
-                child: Text('Cancel'),
+                child: Text(
+                  'Cancel',
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
               ),
-              Text('Scan Contact'),
+              Text(
+                'Scan Contact',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
               GestureDetector(
                 onTap: () {},
-                child: Text('FlashLight'),
+                child: Icon(Icons.flashlight_on),
               ), // TODO Flashlight
             ],
           ),
           MobileScanner(onDetect: _handleBarcode),
-          Text('Point at Your Contact\'s Code'),
-          Text('Both phones need to be in the same room.'),
           Text(
-            'The camera is only used to read contact codes. Nothing is stored or uploaded.',
+            'Point at Your Contact\'s Code',
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+          Text(
+            'Both phones need to be in the same room.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          Text(
+            'The camera is only used to read contact codes.\nNothing is stored or uploaded.',
+            style: Theme.of(context).textTheme.bodyMedium,
           ),
 
           ElevatedButton(
             onPressed: () {
               Navigator.of(context).pop();
             },
-            child: Text('Show My Card'),
+            child: Text(
+              'Show My Card',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
           ),
         ],
       ),
@@ -107,10 +125,20 @@ class _ScanState extends State<Scan> {
     return Column(
       children: [
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            GestureDetector(onTap: _handleCancel, child: Text('Cancel')),
-            Text('New Contact'),
-            GestureDetector(onTap: _addContact, child: Text('Add')),
+            GestureDetector(
+              onTap: _handleCancel,
+              child: Text(
+                'Cancel',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+            ),
+            Text('New Contact', style: Theme.of(context).textTheme.bodyLarge),
+            GestureDetector(
+              onTap: _addContact,
+              child: Text('Add', style: Theme.of(context).textTheme.bodyLarge),
+            ),
           ],
         ),
         TextField(
@@ -119,8 +147,12 @@ class _ScanState extends State<Scan> {
           onChanged: (value) {
             _nameText = value;
           },
+          style: Theme.of(context).textTheme.bodyLarge,
         ),
-        Text('Their Fingerprint'),
+        Text(
+          'Their Fingerprint',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
         Container(
           decoration: BoxDecoration(
             border: Border.all(color: Colors.grey.shade300),
@@ -130,6 +162,7 @@ class _ScanState extends State<Scan> {
         ),
         Text(
           'Check that it matches the code on their screen before you add them.',
+          style: Theme.of(context).textTheme.bodyMedium,
         ),
       ],
     );
@@ -137,11 +170,18 @@ class _ScanState extends State<Scan> {
 
   @override
   Widget build(BuildContext context) {
-    return SlidingUpPanel(
-      body: _buildBackground(),
-      panel: _scannedFingerprint == null
-          ? _buildModal(_scannedFingerprint!)
-          : null,
-    );
+    if (_scannedFingerprint != null) {
+      return SlidingUpPanel(
+        body: _buildBackground(),
+        panel: _buildModal(_scannedFingerprint!),
+        color: Colors.grey,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+        ),
+      );
+    } else {
+      return _buildBackground();
+    }
   }
 }

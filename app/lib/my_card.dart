@@ -12,49 +12,84 @@ class MyCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Column(
+        spacing: 8.0,
         children: [
-          Text('My Card'),
+          Align(
+            alignment: Alignment.topLeft,
+            child: Text(
+              'My Card',
+              style: Theme.of(context).textTheme.headlineLarge,
+            ),
+          ),
           QrImageView(
             data: fingerprint,
             size: qrSize,
             version: QrVersions.auto,
+            backgroundColor: Colors.white,
           ),
           Text(
             'Show this code to your contact while you are standing together',
+            style: Theme.of(context).textTheme.bodyMedium,
+            textAlign: TextAlign.center,
           ),
-          Text('FINGERPRINT'),
+          Text('FINGERPRINT', style: Theme.of(context).textTheme.bodyLarge),
           Container(
+            width: double.infinity,
             decoration: BoxDecoration(
               border: Border.all(color: Colors.grey.shade300),
               borderRadius: BorderRadius.all(Radius.circular(20)),
             ),
-            child: Text(fingerprint.substring(0, 16)),
+            child: FittedBox(
+              fit: BoxFit.fitWidth,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  fingerprint.substring(0, 16),
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
+              ),
+            ),
           ),
           Text(
             'The first 16 characters of your ID. Read them out loud so your contact can compare.',
+            style: Theme.of(context).textTheme.bodyMedium,
+            textAlign: TextAlign.center,
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.of(context).push(
-                MaterialPageRoute<void>(builder: (context) => const Scan()),
+                MaterialPageRoute<void>(
+                  builder: (context) {
+                    return Scaffold(
+                      backgroundColor: Colors.black,
+                      body: Scan(),
+                    );
+                  },
+                ),
               );
             },
             style: ElevatedButton.styleFrom(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
+              backgroundColor: Colors.blue,
             ),
             child: Center(
               child: Row(
                 children: [
-                  Image(image: AssetImage('assets/camera_icon.png')),
-                  Text('Scan a Contact'),
+                  Icon(Icons.camera),
+                  Text(
+                    'Scan a Contact',
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
                 ],
               ),
             ),
           ),
           Text(
             'Your card holds two public keys and nothing else. It is safe to show, photograph or print.',
+            style: Theme.of(context).textTheme.bodyMedium,
+            textAlign: TextAlign.center,
           ),
         ],
       ),
