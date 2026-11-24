@@ -133,6 +133,14 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  fluttertoast:
+    dependency: "direct main"
+    description:
+      name: fluttertoast
+      sha256: af237c0801b908200f5069835009fb4b95e548e1878b2202ab5627c9555a39af
+      url: "https://pub.dev"
+    source: hosted
+    version: "10.0.3"
   hooks:
     dependency: transitive
     description:
