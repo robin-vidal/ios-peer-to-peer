@@ -48,4 +48,34 @@ void main() {
       await expectLater(identity.toJson(), throwsA(isA<ProtocolException>()));
     },
   );
+
+  test('app identity reports a native key replacement', () async {
+    final softwareIdentity = await Identity.generate();
+    var keyChanged = false;
+
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          switch (call.method) {
+            case 'createOrLoad':
+              return <Object?, Object?>{
+                'publicKey': softwareIdentity.signingPublicKey,
+                'keyChanged': true,
+              };
+            case 'createOrLoadAgreementKey':
+              return <Object?, Object?>{
+                'agreementKey': Uint8List(32)..[31] = 1,
+                'keyChanged': false,
+              };
+            default:
+              return null;
+          }
+        });
+
+    await createAppIdentity(
+      signing: SecureEnclaveSigning(),
+      onKeyChanged: () => keyChanged = true,
+    );
+
+    expect(keyChanged, isTrue);
+  });
 }

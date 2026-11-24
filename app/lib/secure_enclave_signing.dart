@@ -18,12 +18,14 @@ class SecureEnclaveSigning {
             );
 
   final MethodChannel _channel;
+  bool keyChanged = false;
 
   Future<bool> get isAvailable =>
       _channel.invokeMethod<bool>('isAvailable').then((value) => value == true);
 
   Future<Uint8List> createOrLoad() async {
     final result = await _invokeMap('createOrLoad');
+    keyChanged = keyChanged || result['keyChanged'] == true;
     return _publicKey(result['publicKey']);
   }
 
@@ -32,7 +34,13 @@ class SecureEnclaveSigning {
   }
 
   Future<Uint8List> createOrLoadAgreementKey() async {
-    final value = await _invoke('createOrLoadAgreementKey');
+    final nativeResult = await _invoke('createOrLoadAgreementKey');
+    Object? value = nativeResult;
+    if (nativeResult is Map) {
+      final result = nativeResult.cast<Object?, Object?>();
+      keyChanged = keyChanged || result['keyChanged'] == true;
+      value = result['agreementKey'];
+    }
     if (value is! Uint8List && value is! List<int>) {
       throw const SecureEnclaveSigningException(
         'invalid-agreement-key',

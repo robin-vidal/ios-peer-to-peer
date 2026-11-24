@@ -58,6 +58,26 @@ void main() {
       );
     });
 
+    test('createOrLoad exposes native key replacement status', () async {
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(const MethodChannel(channelName), (
+        call,
+      ) async {
+        return <Object?, Object?>{
+          'publicKey': Uint8List.fromList(
+            List<int>.filled(65, 0)..[0] = 0x04,
+          ),
+          'keyChanged': true,
+        };
+      });
+
+      final signing = SecureEnclaveSigning();
+      await signing.createOrLoad();
+
+      expect(signing.keyChanged, isTrue);
+    });
+
     test('signDigest rejects a digest that is not 32 bytes', () async {
       await expectLater(
         SecureEnclaveSigning().signDigest(Uint8List(31)),

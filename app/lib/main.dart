@@ -64,6 +64,8 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   int _counter = 0;
   late final Future<String> _identityId;
+  bool _keyChanged = false;
+  bool _keyChangedAlertShown = false;
 
   @override
   void initState() {
@@ -72,7 +74,11 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<String> _loadAppIdentity() async {
-    final identity = await createAppIdentity();
+    final identity = await createAppIdentity(
+      onKeyChanged: () {
+        _keyChanged = true;
+      },
+    );
     return identity.id;
   }
 
@@ -134,6 +140,29 @@ class _MyHomePageState extends State<MyHomePage> {
                 }
                 if (!snapshot.hasData) {
                   return const Text('Initializing secure identity...');
+                }
+                if (_keyChanged && !_keyChangedAlertShown) {
+                  _keyChangedAlertShown = true;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!mounted) return;
+                    showDialog<void>(
+                      context: context,
+                      builder: (dialogContext) => AlertDialog(
+                        title: const Text('Identity key changed'),
+                        content: const Text(
+                          'A new signing or agreement key replaced the previous local identity. '
+                          'Peers will not be told this change is continuity.',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () =>
+                                Navigator.of(dialogContext).pop(),
+                            child: const Text('OK'),
+                          ),
+                        ],
+                      ),
+                    );
+                  });
                 }
                 return Text(
                   'Secure identity ready: ${snapshot.data!.substring(0, 8)}',

@@ -56,3 +56,22 @@ Thanks. Please read the ticket again and verify the code fills out all the requi
 
 ---
 
+For each of my sollicitation, write my message as sent in /docs/prompts/Marie-Loou
+
+---
+
+there is a silent identity replacement:
+
+plugin:64: load fail -> delete + re-mint -> return. success
+plugin:130: absent/corrupt agreement key -> overwrite
+
+identity can change and nothing upstream can tell.
+
+session:130 demand a key-changed alert the channel cannot feed (spec and code landed together, fix is additive)
+
+Base on session.md to do the fix
+
+---
+
+I think this code can be refactored.
+

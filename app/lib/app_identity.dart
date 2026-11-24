@@ -4,10 +4,15 @@ import 'secure_enclave_signing.dart';
 
 Future<Identity> createAppIdentity({
   SecureEnclaveSigning? signing,
+  void Function()? onKeyChanged,
 }) async {
   final secureSigning = signing ?? SecureEnclaveSigning();
+  secureSigning.keyChanged = false;
   final signingPublicKey = await secureSigning.createOrLoad();
   final agreementSeed = await secureSigning.createOrLoadAgreementKey();
+  if (secureSigning.keyChanged) {
+    onKeyChanged?.call();
+  }
 
   return Identity.fromExternalSigner(
     signingPublicKey: signingPublicKey,

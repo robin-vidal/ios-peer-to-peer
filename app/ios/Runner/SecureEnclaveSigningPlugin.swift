@@ -7,6 +7,7 @@ final class SecureEnclaveSigningPlugin: NSObject, FlutterPlugin {
   private static let channelName = "fr.epita.p2pchat/secure_enclave_signing"
   private static let signingKeychainAccount = "long-term-p256-signing-key"
   private static let agreementKeychainAccount = "long-term-p256-agreement-key"
+  private static let identityBaselineKeychainAccount = "long-term-p256-identity-baseline"
   private static let keychainService = "fr.epita.p2pchat.signing"
 
   static func register(with registry: FlutterPluginRegistry) {
@@ -56,15 +57,25 @@ final class SecureEnclaveSigningPlugin: NSObject, FlutterPlugin {
 
     do {
       let key: SecureEnclave.P256.Signing.PrivateKey
+      let previousBaseline = try loadValue(account: Self.identityBaselineKeychainAccount)
+      var keyChanged = false
       if let stored = try loadValue(account: Self.signingKeychainAccount) {
         if let loaded = try? SecureEnclave.P256.Signing.PrivateKey(
           dataRepresentation: stored
         ) {
           key = loaded
+          if let previousBaseline,
+             previousBaseline.count >= 65,
+             previousBaseline.subdata(in: 0..<65) != key.publicKey.x963Representation {
+            keyChanged = true
+          }
         } else {
           let deleteStatus = deleteStoredValue(account: Self.signingKeychainAccount)
           guard isDeleted(deleteStatus) else {
             throw SigningPluginError.keychainStatus(deleteStatus)
+          }
+          if previousBaseline != nil {
+            keyChanged = true
           }
           do {
             key = try createPrivateKey()
@@ -78,6 +89,9 @@ final class SecureEnclaveSigningPlugin: NSObject, FlutterPlugin {
           }
         }
       } else {
+        if previousBaseline != nil {
+          keyChanged = true
+        }
         do {
           key = try createPrivateKey()
         } catch {
@@ -93,6 +107,7 @@ final class SecureEnclaveSigningPlugin: NSObject, FlutterPlugin {
       let publicKey = key.publicKey.x963Representation
       result([
         "publicKey": FlutterStandardTypedData(bytes: publicKey),
+        "keyChanged": keyChanged,
       ])
     } catch {
       result(FlutterError(
@@ -127,10 +142,20 @@ final class SecureEnclaveSigningPlugin: NSObject, FlutterPlugin {
   private func createOrLoadAgreementKey(result: @escaping FlutterResult) {
     do {
       let key: P256.KeyAgreement.PrivateKey
+      let previousBaseline = try loadValue(account: Self.identityBaselineKeychainAccount)
+      var keyChanged = false
       if let stored = try loadValue(account: Self.agreementKeychainAccount),
          let loaded = try? P256.KeyAgreement.PrivateKey(rawRepresentation: stored) {
         key = loaded
+        if let previousBaseline,
+           previousBaseline.count == 130,
+           previousBaseline.subdata(in: 65..<130) != key.publicKey.x963Representation {
+          keyChanged = true
+        }
       } else {
+        if previousBaseline != nil && previousBaseline!.count == 130 {
+          keyChanged = true
+        }
         let generated = P256.KeyAgreement.PrivateKey()
         try storeValue(
           generated.rawRepresentation,
@@ -138,7 +163,21 @@ final class SecureEnclaveSigningPlugin: NSObject, FlutterPlugin {
         )
         key = generated
       }
-      result(FlutterStandardTypedData(bytes: key.rawRepresentation))
+      guard let signingKey = try loadPrivateKey() else {
+        throw SigningPluginError.keyNotFound
+      }
+      if let previousBaseline,
+         previousBaseline.count == 130,
+         previousBaseline.subdata(in: 0..<65) != signingKey.publicKey.x963Representation {
+        keyChanged = true
+      }
+      var identityBaseline = signingKey.publicKey.x963Representation
+      identityBaseline.append(key.publicKey.x963Representation)
+      try storeValue(identityBaseline, account: Self.identityBaselineKeychainAccount)
+      result([
+        "agreementKey": FlutterStandardTypedData(bytes: key.rawRepresentation),
+        "keyChanged": keyChanged,
+      ])
     } catch {
       result(FlutterError(
         code: "agreement-key-failed",
@@ -217,7 +256,9 @@ final class SecureEnclaveSigningPlugin: NSObject, FlutterPlugin {
   private func deleteIdentity(result: @escaping FlutterResult) {
     let signingStatus = deleteStoredValue(account: Self.signingKeychainAccount)
     let agreementStatus = deleteStoredValue(account: Self.agreementKeychainAccount)
-    if isDeleted(signingStatus) && isDeleted(agreementStatus) {
+    let baselineStatus = deleteStoredValue(account: Self.identityBaselineKeychainAccount)
+    if isDeleted(signingStatus) && isDeleted(agreementStatus)
+        && isDeleted(baselineStatus) {
       result(true)
       return
     }
@@ -299,6 +340,7 @@ final class SecureEnclaveSigningPlugin: NSObject, FlutterPlugin {
 
 private enum SigningPluginError: Error {
   case keychainStatus(OSStatus)
+  case keyNotFound
   case invalidSignatureLength(Int)
   case invalidDigestLength(Int)
   case accessControlCreation(CFError?)
