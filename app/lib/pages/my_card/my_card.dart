@@ -3,6 +3,7 @@ import 'package:p2pchat/app_identity.dart';
 import 'package:p2pchat/pages/scan/scan.dart';
 import 'package:p2pchat/utils.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 
 class MyCard extends StatelessWidget {
   const MyCard(this.qrSize, this.identityLoader, {super.key});
@@ -26,6 +27,25 @@ class MyCard extends StatelessWidget {
           child: Column(
             spacing: 8.0,
             children: [
+              Align(
+                alignment: Alignment.topRight,
+                child: GestureDetector(
+                  onTap: () {
+                    if (snapshot.hasData) {
+                      SharePlus.instance.share(
+                        ShareParams(
+                          text: snapshot.data!,
+                          title: 'Share your ID',
+                        ),
+                      );
+                    }
+                  },
+                  child: Icon(
+                    Icons.ios_share_outlined,
+                    color: Colors.blueAccent,
+                  ),
+                ),
+              ),
               Align(
                 alignment: Alignment.topLeft,
                 child: Text(
