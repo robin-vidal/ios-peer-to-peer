@@ -9,8 +9,8 @@ const int publicKeyLength = 65;
 const int scalarLength = 32;
 const int signatureLength = 64;
 const int gcmTagLength = 16;
+const int gcmNonceLength = 12;
 
-const int _gcmNonceLength = 12;
 const int _uncompressedPrefix = 0x04;
 
 final ECDomainParameters p256 = ECDomainParameters('prime256v1');
@@ -184,29 +184,55 @@ Uint8List hkdfSha256({
 
 Uint8List aesGcmSeal({
   required List<int> key,
+  required List<int> nonce,
+  required List<int> associatedData,
   required List<int> plaintext,
 }) =>
-    _aesGcm(forEncryption: true, key: key, input: plaintext);
+    _aesGcm(
+      forEncryption: true,
+      key: key,
+      nonce: nonce,
+      associatedData: associatedData,
+      input: plaintext,
+    );
 
 Uint8List aesGcmOpen({
   required List<int> key,
+  required List<int> nonce,
+  required List<int> associatedData,
   required List<int> ciphertext,
 }) =>
-    _aesGcm(forEncryption: false, key: key, input: ciphertext);
+    _aesGcm(
+      forEncryption: false,
+      key: key,
+      nonce: nonce,
+      associatedData: associatedData,
+      input: ciphertext,
+    );
 
 Uint8List _aesGcm({
   required bool forEncryption,
   required List<int> key,
+  required List<int> nonce,
+  required List<int> associatedData,
   required List<int> input,
 }) {
+  if (nonce.length != gcmNonceLength) {
+    throw ArgumentError.value(
+      nonce.length,
+      'nonce',
+      'an AES-GCM nonce must be $gcmNonceLength bytes',
+    );
+  }
+
   final cipher = GCMBlockCipher(AESEngine())
     ..init(
       forEncryption,
       AEADParameters(
         KeyParameter(Uint8List.fromList(key)),
         gcmTagLength * 8,
-        Uint8List(_gcmNonceLength),
-        Uint8List(0),
+        Uint8List.fromList(nonce),
+        Uint8List.fromList(associatedData),
       ),
     );
   return cipher.process(Uint8List.fromList(input));

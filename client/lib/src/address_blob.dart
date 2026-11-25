@@ -40,7 +40,12 @@ class AddressBlob {
 
     return (FieldWriter()
           ..raw(ephemeralPublicKey)
-          ..raw(aesGcmSeal(key: key, plaintext: payload.take())))
+          ..raw(aesGcmSeal(
+            key: key,
+            nonce: Uint8List(gcmNonceLength),
+            associatedData: Uint8List(0),
+            plaintext: payload.take(),
+          )))
         .take();
   }
 
@@ -68,7 +73,12 @@ class AddressBlob {
 
     final Uint8List payload;
     try {
-      payload = aesGcmOpen(key: key, ciphertext: sealed);
+      payload = aesGcmOpen(
+        key: key,
+        nonce: Uint8List(gcmNonceLength),
+        associatedData: Uint8List(0),
+        ciphertext: sealed,
+      );
     } on InvalidCipherTextException {
       throw const BlobAuthenticityException(
         'address blob is not sealed for this identity',
