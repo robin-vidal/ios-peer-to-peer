@@ -5,9 +5,7 @@ import 'package:p2pchat/widgets/bottom_nav_bar.dart';
 import 'app_identity.dart';
 
 void main() {
-  runApp(
-    MyApp(identityLoader: () async => throw StateError('creation failed')),
-  );
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -50,7 +48,7 @@ class MyApp extends StatelessWidget {
             title: 'Home Page',
             identityLoader: identityLoader,
           ),
-          codeWidget: MyCard('fingerprint1111111', 200),
+          codeWidget: MyCard(200, identityLoader),
           settingsWidget: Text('Settings'),
         ),
       ),
