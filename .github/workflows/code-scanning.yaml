@@ -350,10 +350,16 @@ jobs:
           queries: security-extended
       - name: Build
         working-directory: app
+        # on arm64 runners flutter wraps xcodebuild in /usr/bin/arch, a SIP binary that strips
+        # the CodeQL tracer, so flutter only writes the config and xcodebuild compiles the Swift
         run: |
           flutter pub get
-          flutter build ios --debug --no-codesign
-          flutter build macos --debug
+          flutter build ios --debug --no-codesign --config-only
+          xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Debug \
+            -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
+          flutter build macos --debug --config-only
+          xcodebuild -workspace macos/Runner.xcworkspace -scheme Runner -configuration Debug \
+            -destination 'generic/platform=macOS' CODE_SIGNING_ALLOWED=NO build
       - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066
         with:
           category: codeql-swift
