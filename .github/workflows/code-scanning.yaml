@@ -104,6 +104,9 @@ jobs:
             0|1) ;;
             *) echo "staticcheck failed with exit code $status"; exit "$status" ;;
           esac
+          # a clean run omits the results array, which upload-sarif rejects
+          jq '.runs[].results //= []' ../staticcheck.sarif > ../staticcheck.sarif.tmp
+          mv ../staticcheck.sarif.tmp ../staticcheck.sarif
           if jq -e 'any(.runs[].results[]?; .ruleId == "compile")' ../staticcheck.sarif >/dev/null; then
             echo "staticcheck could not compile the packages"
             jq -r '.runs[].results[] | select(.ruleId == "compile") | .message.text' ../staticcheck.sarif
