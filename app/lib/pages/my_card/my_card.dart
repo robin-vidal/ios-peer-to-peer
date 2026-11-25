@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
-import 'package:p2pchat/scan.dart';
+import 'package:p2pchat/pages/scan/scan.dart';
+import 'package:p2pchat/utils.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 class MyCard extends StatelessWidget {
@@ -34,17 +35,19 @@ class MyCard extends StatelessWidget {
           ),
           Text('FINGERPRINT', style: Theme.of(context).textTheme.bodyLarge),
           Container(
+            padding: EdgeInsets.only(left: 8.0, right: 8.0),
             width: double.infinity,
             decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade300),
-              borderRadius: BorderRadius.all(Radius.circular(20)),
+              border: Border.all(color: Colors.transparent),
+              borderRadius: BorderRadius.all(Radius.circular(25)),
+              color: Colors.grey.shade700,
             ),
             child: FittedBox(
               fit: BoxFit.fitWidth,
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  fingerprint.substring(0, 16),
+                  spaceText(fingerprint.substring(0, 16), 4).toUpperCase(),
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
               ),
@@ -60,30 +63,34 @@ class MyCard extends StatelessWidget {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
                   builder: (context) {
-                    return Scaffold(
-                      backgroundColor: Colors.black,
-                      body: Scan(),
+                    return Padding(
+                      padding: EdgeInsets.only(top: 32.0),
+                      child: Scaffold(
+                        backgroundColor: Colors.black,
+                        body: Scan(),
+                      ),
                     );
                   },
                 ),
               );
             },
             style: ElevatedButton.styleFrom(
+              minimumSize: Size.fromHeight(40),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
               backgroundColor: Colors.blue,
             ),
-            child: Center(
-              child: Row(
-                children: [
-                  Icon(Icons.camera),
-                  Text(
-                    'Scan a Contact',
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                ],
-              ),
+            child: Row(
+              spacing: 8,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.camera_alt, color: Colors.white),
+                Text(
+                  'Scan a Contact',
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
+              ],
             ),
           ),
           Text(

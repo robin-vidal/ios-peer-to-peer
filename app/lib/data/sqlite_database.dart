@@ -7,7 +7,7 @@ const dbVersion = 1;
 class SqliteDatabase {
   void _onCreate(Database db, int version) async {
     await db.execute(
-      'CREATE TABLE Contact (id INTEGER PRIMARY KEY AUTOINCREMENT, name STRING NOT NULL, fingerprint STRING NOT NULL)',
+      'CREATE TABLE Contact (id INTEGER PRIMARY KEY AUTOINCREMENT, name STRING, fingerprint STRING NOT NULL)',
     );
   }
 

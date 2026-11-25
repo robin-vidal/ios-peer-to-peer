@@ -1,5 +1,5 @@
 import 'package:material_ui/material_ui.dart';
-import 'package:p2pchat/my_card.dart';
+import 'package:p2pchat/pages/my_card/my_card.dart';
 
 void main() {
   runApp(const MyApp());
@@ -23,7 +23,7 @@ class MyApp extends StatelessWidget {
           bodyMedium: TextStyle(color: Colors.grey, fontSize: 16),
         ),
       ),
-      home: const BottomNavBar(),
+      home: Padding(padding: EdgeInsets.only(top: 16.0), child: BottomNavBar()),
     );
   }
 }

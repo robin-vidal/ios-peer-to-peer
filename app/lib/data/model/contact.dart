@@ -4,13 +4,13 @@ class Contact {
   Contact(this.name, this.fingerprint);
 
   int? _id;
-  final String name;
+  final String? name;
   final String fingerprint;
 
   static final SqliteDatabase _db = SqliteDatabase();
 
   factory Contact.fromDatabase(Map<String, Object?> row) {
-    var contact = Contact(row['name'] as String, row['fingerprint'] as String);
+    var contact = Contact(row['name'] as String?, row['fingerprint'] as String);
     contact._id = row['id'] as int;
 
     return contact;
