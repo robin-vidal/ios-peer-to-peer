@@ -16,7 +16,7 @@ This document explains which security tools run in CI, why each one was chosen, 
 
 **The threat model is stated honestly.** The code is public, so anyone can run the same tools and reproduce the findings. Keeping alerts private avoids publishing a sorted list with our triage notes; it does not make weaknesses secret. Fixing quickly is the protection.
 
-## Code scanning (`.github/workflows/code-scanning.yml`)
+## Code scanning (`.github/workflows/code-scanning.yaml`)
 
 **Triggers:** every pull request, every push to `main`, weekly on Monday (vulnerabilities are published against dependencies that did not change), and manually.
 
@@ -78,7 +78,7 @@ This document explains which security tools run in CI, why each one was chosen, 
 ### CodeQL: Swift enclave plugin
 
 - **Checks:** the Swift code with the `security-extended` queries, including taint tracking from untrusted input to sensitive operations.
-- **When it runs:** only when Swift beyond the Flutter template exists (the enclave plugin of #31). A cheap Linux job decides, so the macOS runner is not started for nothing. CodeQL observes a build, so the job builds the app with `flutter build ios --debug --no-codesign`.
+- **When it runs:** only when Swift beyond the Flutter template exists (the enclave plugin of #31). A cheap Linux job decides, so the macOS runner is not started for nothing. CodeQL observes a build, so the job builds the iOS and macOS apps. Flutter only writes the Xcode configuration (`flutter build ios|macos --debug --config-only`) and `xcodebuild` compiles, unsigned: on the arm64 runner Flutter starts `xcodebuild` through `/usr/bin/arch`, a SIP-protected binary that strips the CodeQL tracer, so a plain `flutter build` compiles Swift that CodeQL never sees.
 - **Job fails when:** the build fails or CodeQL writes no SARIF.
 - **Alternatives:** Semgrep's Swift rules, without data flow.
 - **MASVS:** CRYPTO-2 (enclave key handling), partly STORAGE-1 (Keychain use) and PLATFORM-1 (platform channel handler).
