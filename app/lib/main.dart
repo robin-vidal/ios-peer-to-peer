@@ -1,8 +1,11 @@
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'app_identity.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   runApp(const MyApp());
 }
 
@@ -155,8 +158,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         ),
                         actions: [
                           TextButton(
-                            onPressed: () =>
-                                Navigator.of(dialogContext).pop(),
+                            onPressed: () => Navigator.of(dialogContext).pop(),
                             child: const Text('OK'),
                           ),
                         ],

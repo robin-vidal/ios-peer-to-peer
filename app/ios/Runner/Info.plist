@@ -66,5 +66,11 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Scan a QR code to add new contact.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Use to identify yourself to get yours keys.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Use local network to connect to the server.</string>
 </dict>
 </plist>
