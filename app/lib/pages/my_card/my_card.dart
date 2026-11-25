@@ -69,14 +69,20 @@ class MyCard extends StatelessWidget {
                 style: Theme.of(context).textTheme.bodyMedium,
                 textAlign: TextAlign.center,
               ),
-              Text('FINGERPRINT', style: Theme.of(context).textTheme.bodyLarge),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'FINGERPRINT',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
               Container(
                 padding: EdgeInsets.only(left: 8.0, right: 8.0),
                 width: double.infinity,
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.transparent),
-                  borderRadius: BorderRadius.all(Radius.circular(25)),
-                  color: Colors.grey.shade700,
+                  borderRadius: BorderRadius.all(Radius.circular(10)),
+                  color: Colors.grey[850],
                 ),
                 child: FittedBox(
                   fit: BoxFit.fitWidth,
