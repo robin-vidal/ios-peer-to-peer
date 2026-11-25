@@ -218,7 +218,10 @@ class _ScanState extends State<Scan> {
                   color: Colors.grey.shade700,
                 ),
                 child: Text(
-                  spaceText(newFingerprint.substring(0, 16), 4).toUpperCase(),
+                  groupCharacters(
+                    newFingerprint.substring(0, 16),
+                    4,
+                  ).toUpperCase(),
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
               ),

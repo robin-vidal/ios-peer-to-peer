@@ -47,7 +47,10 @@ class MyCard extends StatelessWidget {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  spaceText(fingerprint.substring(0, 16), 4).toUpperCase(),
+                  groupCharacters(
+                    fingerprint.substring(0, 16),
+                    4,
+                  ).toUpperCase(),
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
               ),
