@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:p2pchat/pages/scan/scan_view_model.dart';
 import 'package:p2pchat/utils.dart';
+import 'package:registry_client/registry_client.dart';
 import 'package:sliding_up_panel/sliding_up_panel.dart';
 
 import '../../data/model/contact.dart';
@@ -155,6 +156,7 @@ class _ScanState extends State<Scan> {
   }
 
   Widget _buildModal(String newFingerprint) {
+    final newContactCart = ContactCard.fromDB(newFingerprint);
     return Padding(
       padding: EdgeInsets.only(left: 8.0, right: 8.0),
       child: Column(
@@ -205,9 +207,12 @@ class _ScanState extends State<Scan> {
           ),
           Column(
             children: [
-              Text(
-                'THEIR FINGERPRINT',
-                style: Theme.of(context).textTheme.bodyMedium,
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'THEIR FINGERPRINT',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
               ),
               Container(
                 padding: EdgeInsets.only(left: 8.0, right: 8.0),
@@ -219,7 +224,7 @@ class _ScanState extends State<Scan> {
                 ),
                 child: Text(
                   groupCharacters(
-                    newFingerprint.substring(0, 16),
+                    newContactCart.id.substring(0, 16),
                     4,
                   ).toUpperCase(),
                   style: Theme.of(context).textTheme.bodyLarge,

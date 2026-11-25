@@ -3,22 +3,20 @@ import 'package:p2pchat/app_identity.dart';
 import 'package:p2pchat/pages/scan/scan.dart';
 import 'package:p2pchat/utils.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:registry_client/registry_client.dart';
 import 'package:share_plus/share_plus.dart';
 
 class MyCard extends StatelessWidget {
-  const MyCard(this.qrSize, this.identityLoader, {super.key});
+  const MyCard(this.qrSize, {super.key});
 
-  final Future<String> Function()? identityLoader;
   final double qrSize;
 
   @override
   Widget build(BuildContext context) {
-    final Future<String> Function() idFunc =
-        (identityLoader ??
-        () async {
-          final identity = await createAppIdentity();
-          return identity.id;
-        });
+    Future<Identity> idFunc() async {
+      final identity = await createAppIdentity();
+      return identity;
+    }
 
     return FutureBuilder(
       future: idFunc(),
@@ -34,7 +32,7 @@ class MyCard extends StatelessWidget {
                     if (snapshot.hasData) {
                       SharePlus.instance.share(
                         ShareParams(
-                          text: snapshot.data!,
+                          text: snapshot.data!.card.toDB(),
                           title: 'Share your ID',
                         ),
                       );
@@ -55,7 +53,7 @@ class MyCard extends StatelessWidget {
               ),
               snapshot.hasData
                   ? QrImageView(
-                      data: snapshot.data!,
+                      data: snapshot.data!.card.toDB(),
                       size: qrSize,
                       version: QrVersions.auto,
                       backgroundColor: Colors.white,
@@ -91,7 +89,7 @@ class MyCard extends StatelessWidget {
                     child: snapshot.hasData
                         ? Text(
                             groupCharacters(
-                              snapshot.data!.substring(0, 16),
+                              snapshot.data!.id.substring(0, 16),
                               4,
                             ).toUpperCase(),
                             style: Theme.of(context).textTheme.bodyLarge,

@@ -13,7 +13,7 @@ class ScanViewModel extends ChangeNotifier {
     final barcode = barcodes.barcodes.firstOrNull;
     if (barcode != null) {
       final code = barcode.rawValue;
-      if (code != null && code.length == 512) {
+      if (code != null && code.length == 130) {
         _scannedFingerprint = code;
         notifyListeners();
       } else {

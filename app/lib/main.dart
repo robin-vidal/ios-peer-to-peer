@@ -47,7 +47,7 @@ class MyApp extends StatelessWidget {
             title: 'Home Page',
             identityLoader: identityLoader,
           ),
-          codeWidget: MyCard(200, identityLoader),
+          codeWidget: MyCard(200),
           settingsWidget: Text('Settings'),
         ),
       ),
