@@ -1,20 +1,25 @@
 import 'package:material_ui/material_ui.dart';
-import 'package:p2pchat/pages/my_card/my_card.dart';
 
 class BottomNavBar extends StatefulWidget {
-  const BottomNavBar({super.key});
+  const BottomNavBar({
+    required this.homeWidget,
+    required this.codeWidget,
+    required this.settingsWidget,
+    super.key,
+  });
+
+  final Widget homeWidget;
+  final Widget codeWidget;
+  final Widget settingsWidget;
 
   @override
   State<BottomNavBar> createState() => _BottomNavBarState();
 }
 
 class _BottomNavBarState extends State<BottomNavBar> {
+  _BottomNavBarState();
+
   int _selectedIndex = 0;
-  static const List<Widget> _widgetOptions = <Widget>[
-    Text('Home Page'),
-    MyCard('fingerprint1111111', 200),
-    Text('Settings Page'),
-  ];
 
   void _onItemTapped(int index) {
     setState(() {
@@ -24,9 +29,15 @@ class _BottomNavBarState extends State<BottomNavBar> {
 
   @override
   Widget build(BuildContext context) {
+    List<Widget> widgetOptions = <Widget>[
+      widget.homeWidget,
+      widget.codeWidget,
+      widget.settingsWidget,
+    ];
+
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Center(child: _widgetOptions.elementAt(_selectedIndex)),
+      body: Center(child: widgetOptions.elementAt(_selectedIndex)),
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: Colors.blueGrey,
         items: const <BottomNavigationBarItem>[

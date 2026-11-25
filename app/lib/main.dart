@@ -1,9 +1,13 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:p2pchat/pages/my_card/my_card.dart';
+import 'package:p2pchat/widgets/bottom_nav_bar.dart';
 
 import 'app_identity.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(
+    MyApp(identityLoader: () async => throw StateError('creation failed')),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -33,10 +37,22 @@ class MyApp extends StatelessWidget {
         // This works for code too, not just values: Most code changes can be
         // tested with just a hot reload.
         colorScheme: .fromSeed(seedColor: Colors.deepPurple),
+        textTheme: TextTheme(
+          headlineLarge: TextStyle(color: Colors.white, fontSize: 64),
+          bodyLarge: TextStyle(color: Colors.white, fontSize: 18),
+          bodyMedium: TextStyle(color: Colors.grey, fontSize: 16),
+        ),
       ),
-      home: MyHomePage(
-        title: 'Flutter Demo Home Page',
-        identityLoader: identityLoader,
+      home: Padding(
+        padding: EdgeInsets.only(top: 16.0),
+        child: BottomNavBar(
+          homeWidget: MyHomePage(
+            title: 'Home Page',
+            identityLoader: identityLoader,
+          ),
+          codeWidget: MyCard('fingerprint1111111', 200),
+          settingsWidget: Text('Settings'),
+        ),
       ),
     );
   }
