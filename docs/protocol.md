@@ -153,13 +153,13 @@ Every error is one line starting with `ERR`. Only `ERR too-many-handshakes` clos
 
 When a line could be refused for more than one reason, the reply is the first match in this order, fixed here so that a test can assert it:
 
-- the authentication gate runs before the verb is dispatched and before any argument is counted, so an unknown verb and a verb with the wrong argument count both answer `ERR unauthenticated` when they arrive before a successful `AUTH`
-- `HELLO` counts against the 10 attempt limit before it is parsed, so a malformed `HELLO` still consumes an attempt, and the eleventh attempt is refused whatever it carries
-- `HELLO` and `AUTH` on an authenticated connection answer `ERR already-authenticated` before their arguments are counted
-- `HELLO` checks the argument count, then the signing key, then the agreement key, and a refused `HELLO` clears any challenge the connection held
-- `AUTH` checks the argument count, then the presence of a live challenge, then its age, then that an identity was parsed by a previous `HELLO`, then the signature
-- `PUBLISH` checks the argument count, then the recipient id, then the encoded blob length, then base64 validity, then the 64 recipient cap
-- `FETCH` checks the argument count, then the owner id, then the lookup, which answers `NOTFOUND` and not `ERR`
+1. the authentication gate runs before the verb is dispatched and before any argument is counted, so an unknown verb and a verb with the wrong argument count both answer `ERR unauthenticated` when they arrive before a successful `AUTH`
+2. `HELLO` counts against the 10 attempt limit before it is parsed, so a malformed `HELLO` still consumes an attempt, and the eleventh attempt is refused whatever it carries
+3. `HELLO` and `AUTH` on an authenticated connection answer `ERR already-authenticated` before their arguments are counted
+4. `HELLO` checks the argument count, then the signing key, then the agreement key, and a refused `HELLO` clears any challenge the connection held
+5. `AUTH` checks the argument count, then the presence of a live challenge, then its age, then that an identity was parsed by a previous `HELLO`, then the signature
+6. `PUBLISH` checks the argument count, then the recipient id, then the encoded blob length, then base64 validity, then the 64 recipient cap
+7. `FETCH` checks the argument count, then the owner id, then the lookup, which answers `NOTFOUND` and not `ERR`
 
 A reply that does not follow this order is a finding, not an implementation detail.
 
