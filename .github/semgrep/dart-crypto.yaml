@@ -1,0 +1,160 @@
+rules:
+  - id: dart-insecure-random
+    languages: [dart]
+    severity: ERROR
+    message: >-
+      Random() is a predictable generator. Key material, nonces and seeds must
+      come from Random.secure(), through newSecureRandom() in crypto.dart.
+    metadata:
+      category: security
+      cwe: "CWE-338: Use of Cryptographically Weak Pseudo-Random Number Generator"
+      security-severity: "8.0"
+    pattern-either:
+      - pattern: Random()
+      - pattern: Random($SEED)
+
+  - id: dart-weak-digest
+    languages: [dart]
+    severity: ERROR
+    message: >-
+      MD5 and SHA-1 are broken for collision resistance. The protocol hashes
+      with SHA-256 only.
+    metadata:
+      category: security
+      cwe: "CWE-328: Use of Weak Hash"
+      security-severity: "7.5"
+    pattern-either:
+      - pattern: MD5Digest()
+      - pattern: SHA1Digest()
+      - pattern: Digest('MD5')
+      - pattern: Digest('SHA-1')
+
+  - id: dart-unauthenticated-cipher-mode
+    languages: [dart]
+    severity: ERROR
+    message: >-
+      ECB, CBC, CTR and CFB give no integrity. Every sealed payload goes
+      through aesGcmSeal, an AEAD.
+    metadata:
+      category: security
+      cwe: "CWE-327: Use of a Broken or Risky Cryptographic Algorithm"
+      security-severity: "8.0"
+    pattern-either:
+      - pattern: ECBBlockCipher(...)
+      - pattern: CBCBlockCipher(...)
+      - pattern: CTRStreamCipher(...)
+      - pattern: SICStreamCipher(...)
+      - pattern: CFBBlockCipher(...)
+      - pattern: PaddedBlockCipher(...)
+
+  - id: dart-gcm-outside-crypto-layer
+    languages: [dart]
+    severity: ERROR
+    message: >-
+      AES-GCM is built only inside crypto.dart, where the nonce rule lives: the
+      fixed nonce there is safe because every key is derived from a fresh
+      ephemeral ECDH and used once. A second construction site escapes that rule.
+    metadata:
+      category: security
+      cwe: "CWE-323: Reusing a Nonce, Key Pair in Encryption"
+      security-severity: "8.5"
+    paths:
+      exclude:
+        - "client/lib/src/crypto.dart"
+    pattern-either:
+      - pattern: GCMBlockCipher(...)
+      - pattern: AEADParameters(...)
+
+  - id: dart-signature-result-ignored
+    languages: [dart]
+    severity: ERROR
+    message: >-
+      The result of a signature verification is discarded, so a forged
+      signature is accepted.
+    metadata:
+      category: security
+      cwe: "CWE-347: Improper Verification of Cryptographic Signature"
+      security-severity: "9.0"
+    patterns:
+      - pattern: |
+          {
+            ...
+            $CALL;
+            ...
+          }
+      - focus-metavariable: $CALL
+      - metavariable-regex:
+          metavariable: $CALL
+          regex: ^(verifyMessage|.+\.verifySignature)\((.|\n)*\)$
+
+  - id: dart-raw-point-decode
+    languages: [dart]
+    severity: WARNING
+    message: >-
+      A public key is decoded without decodePublicKey, which is the one place
+      that checks the length, the prefix, the curve equation and the canonical
+      encoding. An unchecked point opens invalid curve attacks on ECDH.
+    metadata:
+      category: security
+      cwe: "CWE-347: Improper Verification of Cryptographic Signature"
+      security-severity: "7.0"
+    paths:
+      exclude:
+        - "client/lib/src/crypto.dart"
+    pattern: $CURVE.decodePoint(...)
+
+  - id: dart-non-constant-time-compare
+    languages: [dart]
+    severity: WARNING
+    message: >-
+      Secret or authenticated bytes are compared with an early exit. Use
+      constantTimeEquals from codec.dart.
+    metadata:
+      category: security
+      cwe: "CWE-208: Observable Timing Discrepancy"
+      security-severity: "5.0"
+    pattern-either:
+      - pattern: listEquals($A, $B)
+      - pattern: const ListEquality().equals($A, $B)
+      - pattern: ListEquality().equals($A, $B)
+
+  - id: dart-private-key-logged
+    languages: [dart]
+    severity: ERROR
+    message: >-
+      Private key material reaches a log. The seeds leave an Identity only
+      through toJson, for the encrypted store.
+    metadata:
+      category: security
+      cwe: "CWE-532: Insertion of Sensitive Information into Log File"
+      security-severity: "8.0"
+    patterns:
+      - pattern-either:
+          - pattern: print(...)
+          - pattern: debugPrint(...)
+          - pattern: log(...)
+          - pattern: $LOGGER.info(...)
+          - pattern: $LOGGER.fine(...)
+          - pattern: $LOGGER.warning(...)
+          - pattern: $LOGGER.severe(...)
+      - pattern-either:
+          - pattern-inside: $F(..., <... $X.signingKey ...>, ...)
+          - pattern-inside: $F(..., <... $X.agreementKey ...>, ...)
+          - pattern-inside: $F(..., <... $X.d ...>, ...)
+          - pattern-inside: $F(..., <... $X.toJson() ...>, ...)
+
+  - id: dart-crypto-exception-swallowed
+    languages: [dart]
+    severity: ERROR
+    message: >-
+      A cipher or signature failure is caught and dropped. An authentication
+      failure must surface as BlobAuthenticityException, never as a value.
+    metadata:
+      category: security
+      cwe: "CWE-390: Detection of Error Condition Without Action"
+      security-severity: "7.5"
+    pattern-either:
+      - pattern: |
+          try { ... } on InvalidCipherTextException { }
+      - pattern: |
+          try { ... } on InvalidCipherTextException catch ($E) { }
