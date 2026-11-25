@@ -39,19 +39,20 @@ class _BottomNavBarState extends State<BottomNavBar> {
       backgroundColor: Colors.black,
       body: Center(child: widgetOptions.elementAt(_selectedIndex)),
       bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: Colors.blueGrey,
+        backgroundColor: Colors.grey[850],
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
-            icon: Icon(Icons.chat_bubble),
+            icon: Icon(Icons.chat_bubble_outline_rounded),
             label: 'Chats',
           ),
           BottomNavigationBarItem(icon: Icon(Icons.qr_code), label: 'My Card'),
           BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
+            icon: Icon(Icons.settings_outlined),
             label: 'Settings',
           ),
         ],
         currentIndex: _selectedIndex,
+        unselectedItemColor: Colors.grey,
         selectedItemColor: Colors.blueAccent,
         onTap: _onItemTapped,
       ),
