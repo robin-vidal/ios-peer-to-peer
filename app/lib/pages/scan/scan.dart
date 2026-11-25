@@ -26,7 +26,7 @@ class _ScanState extends State<Scan> {
     unawaited(controller.start());
   }
 
-  void _addContact() async {
+  void _addContact(BuildContext context) async {
     if (scanViewModel.scannedFingerprint == null) {
       return;
     }
@@ -173,7 +173,9 @@ class _ScanState extends State<Scan> {
               ),
               Text('New Contact', style: Theme.of(context).textTheme.bodyLarge),
               GestureDetector(
-                onTap: _addContact,
+                onTap: () {
+                  _addContact(context);
+                },
                 child: Text(
                   'Add',
                   style: Theme.of(context).textTheme.bodyLarge!
