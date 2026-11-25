@@ -19,6 +19,7 @@ env:
   GOVULNCHECK_VERSION: v1.9.0
   STATICCHECK_VERSION: 2026.2.2
   OSV_SCANNER_VERSION: v2.7.1
+  OSV_SCANNER_GO_VERSION: 1.27.3
   ACTIONLINT_VERSION: v1.7.12
   SEMGREP_VERSION: 1.184.0
   SHELLCHECK_VERSION: v0.11.0
@@ -163,7 +164,8 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
         with:
-          go-version-file: registry-server/go.mod
+          # osv-scanner needs a newer Go than the 1.27.1 registry-server pins
+          go-version: ${{ env.OSV_SCANNER_GO_VERSION }}
           cache: false
       - name: Install
         run: go install "github.com/google/osv-scanner/v2/cmd/osv-scanner@$OSV_SCANNER_VERSION"
