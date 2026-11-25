@@ -9,12 +9,14 @@ Every address it stores is encrypted for a single contact, so the registry holds
 - TCP, TLS 1.3 minimum. A plaintext client is dropped during the handshake.
 - The server certificate is self signed and pinned by the client. See `registry-server/README.md`.
 - Line oriented. One request per line, one reply per line, terminated by `\n`.
-- Maximum 2048 bytes per line. A longer line ends the connection.
+- Maximum 2048 bytes per line. A longer line ends the connection, and the close is silent: the read that would have returned the line fails first, so no `ERR` is sent and the client sees only a closed socket.
 - Fields are separated by runs of whitespace. Empty lines are ignored.
 - Command verbs are case insensitive. Ids are lowercased on input.
 - Base64 is standard encoding with padding. Ids are 64 lowercase hexadecimal characters.
-- A connection has 10 seconds from accept to reach a successful `AUTH`, not extendable by sending commands. The TLS handshake runs inside that budget. Once authenticated there is no read timeout, since staying connected is what keeps a peer present, and a dead peer is caught by TCP keepalive.
-- At most 10 `HELLO` attempts per connection, and at most 1024 concurrent connections server wide.
+- A connection has 10 seconds from accept to reach a successful `AUTH`, not extendable by sending commands. The TLS handshake runs inside that budget.
+- Once authenticated the read deadline is cleared, since staying connected is what keeps a peer present, and a dead peer is caught by TCP keepalive every 30 seconds. The intended bound on an authenticated connection is 30 minutes with no command, after which the server closes it and the peer reconnects and republishes, which it has to do anyway because a blob lives only as long as the connection that published it. That bound is stated here before it exists in the server: today a connection that authenticates and then goes silent holds its slot until the peer or the network drops it.
+- Every reply has 10 seconds to reach the client. A peer that stops reading is closed when that deadline passes, and that close is silent too: the only channel an `ERR` could travel on is the one that is blocked.
+- At most 10 `HELLO` attempts per connection, at most 16 concurrent connections from one source address, and at most 1024 concurrent connections server wide. The per source bound is 16 and not 1 because several peers can share one public address behind NAT. Without it one client reaches the server wide ceiling on its own. Like the idle bound, this one is intent and not yet behaviour: the server counts connections only in total.
 
 ## Identity
 
@@ -66,6 +68,8 @@ Nonce rules:
 - single use: any `AUTH` consumes it, success or failure, so a failed attempt needs a new `HELLO`
 - scoped to its connection and never stored elsewhere
 
+The 30 second window is longer than the 10 second budget from accept to `AUTH`, and that budget is one absolute deadline on the connection rather than a timer reset per command. A challenge therefore cannot still be live when it expires: the connection is closed first. `ERR stale-challenge` is unreachable over the wire and is exercised by a unit test that passes its own clock to the verifier, in `registry-server/identity_test.go`. The check stays in the code, and the row stays in the table below, because the deadline that masks it is a transport decision that a later version may change.
+
 A new `HELLO` on an authenticated connection is refused. Re-authenticating means opening a new connection.
 
 ## Address exchange
@@ -80,6 +84,8 @@ S: NOTFOUND <owner-id>
 ```
 
 `PUBLISH` stores one blob per recipient. Publishing again for the same recipient replaces the previous blob. The owner is the authenticated id of the connection: no request field carries an owner, so a peer cannot publish an address under another id.
+
+A recipient id is checked for being 64 hexadecimal characters and against nothing else. The server holds no list of identities, so a `PUBLISH` for an id that no live connection owns, and that the server has never seen, answers `OK` and stores the blob until the owner disconnects. That is not a missing check: there is no directory to check against, and a blob is readable only by the holder of the matching agreement key.
 
 `FETCH` returns the blob the named owner published for the requesting id, and `NOTFOUND` when there is none. A peer therefore reads only the blob addressed to it.
 
@@ -124,7 +130,7 @@ Presence is the connection, not a record. Nothing is persisted: a server restart
 
 ## Errors
 
-Every error is one line starting with `ERR`. Only `ERR too-many-handshakes` closes the connection.
+Every error is one line starting with `ERR`. Only `ERR too-many-handshakes` closes the connection after sending an error. The other closes described under Transport, an over long line and either deadline, send nothing at all.
 
 | Error | Cause |
 |---|---|
@@ -134,7 +140,7 @@ Every error is one line starting with `ERR`. Only `ERR too-many-handshakes` clos
 | `ERR usage <command> <args>` | wrong number of arguments |
 | `ERR bad-key` | a public key is not valid base64, not 65 bytes, or not a point on P-256 |
 | `ERR no-challenge` | `AUTH` with no live challenge, including a consumed one |
-| `ERR stale-challenge` | the challenge is older than 30 seconds |
+| `ERR stale-challenge` | the challenge is older than 30 seconds, masked by the connection deadline as described above |
 | `ERR bad-signature` | signature malformed, not 64 bytes, or not valid for the nonce |
 | `ERR bad-id` | an id is not 64 hexadecimal characters |
 | `ERR bad-blob` | the blob is not valid base64 |
@@ -142,6 +148,20 @@ Every error is one line starting with `ERR`. Only `ERR too-many-handshakes` clos
 | `ERR too-many-recipients` | the owner already holds 64 blobs and the recipient is a new one |
 | `ERR too-many-handshakes` | more than 10 `HELLO` on one connection, the server then closes |
 | `ERR internal` | the server could not generate a nonce |
+
+### Order of refusals
+
+When a line could be refused for more than one reason, the reply is the first match in this order, fixed here so that a test can assert it:
+
+1. the authentication gate runs before the verb is dispatched and before any argument is counted, so an unknown verb and a verb with the wrong argument count both answer `ERR unauthenticated` when they arrive before a successful `AUTH`
+2. `HELLO` counts against the 10 attempt limit before it is parsed, so a malformed `HELLO` still consumes an attempt, and the eleventh attempt is refused whatever it carries
+3. `HELLO` and `AUTH` on an authenticated connection answer `ERR already-authenticated` before their arguments are counted
+4. `HELLO` checks the argument count, then the signing key, then the agreement key, and a refused `HELLO` clears any challenge the connection held
+5. `AUTH` checks the argument count, then the presence of a live challenge, then its age, then that an identity was parsed by a previous `HELLO`, then the signature
+6. `PUBLISH` checks the argument count, then the recipient id, then the encoded blob length, then base64 validity, then the 64 recipient cap
+7. `FETCH` checks the argument count, then the owner id, then the lookup, which answers `NOTFOUND` and not `ERR`
+
+A reply that does not follow this order is a finding, not an implementation detail.
 
 ## What this protects, and what it does not
 
