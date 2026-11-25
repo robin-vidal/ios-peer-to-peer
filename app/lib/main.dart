@@ -41,8 +41,7 @@ class MyApp extends StatelessWidget {
           bodyMedium: TextStyle(color: Colors.grey, fontSize: 16),
         ),
       ),
-      home: Padding(
-        padding: EdgeInsets.only(top: 16.0),
+      home: SafeArea(
         child: BottomNavBar(
           homeWidget: MyHomePage(
             title: 'Home Page',

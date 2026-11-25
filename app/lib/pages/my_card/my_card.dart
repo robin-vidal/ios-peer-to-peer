@@ -84,8 +84,7 @@ class MyCard extends StatelessWidget {
                   Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (context) {
-                        return Padding(
-                          padding: EdgeInsets.only(top: 32.0),
+                        return SafeArea(
                           child: Scaffold(
                             backgroundColor: Colors.black,
                             body: Scan(),
