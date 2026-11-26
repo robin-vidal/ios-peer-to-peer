@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/robin-vidal/ios-peer-to-peer/actions/workflows/ci.yml"><img src="https://github.com/robin-vidal/ios-peer-to-peer/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
+  <a href="https://github.com/robin-vidal/ios-peer-to-peer/actions/workflows/build-and-test.yml"><img src="https://github.com/robin-vidal/ios-peer-to-peer/actions/workflows/build-and-test.yml/badge.svg" alt="build-and-test"></a>
   <a href="https://github.com/robin-vidal/ios-peer-to-peer/tags"><img src="https://img.shields.io/github/v/tag/robin-vidal/ios-peer-to-peer?label=version&color=0071E3" alt="version"></a>
 </p>
 
@@ -52,11 +52,15 @@ REGISTRY_TLS_CERT=server.crt REGISTRY_TLS_KEY=server.key ./registry-server
 
 `server.key` stays out of the repository. Running the app on a device needs Xcode; the checks above do not.
 
+CI runs the same checks, plus code scanning on every pull request: gosec, govulncheck, staticcheck, Semgrep, osv-scanner, actionlint, shellcheck and CodeQL. What each tool checks, when a job fails and which MASVS controls it covers are in [devsecops.md](docs/devsecops.md).
+
 ## Security dossier
 
 The STRIDE analysis, MASVS grid, SAST and DAST reports, SBOM and cross audit are not published here. They are handed over out of band as one encrypted archive, per issue #55: the cross audit carries another team's weaknesses.
 
 The prompt journals are the exception: they record how the system was designed, not what is weak in it, so they live in [docs/prompts](docs/prompts/README.md), one file per member.
+
+The SAST tools themselves run in public CI, but their findings go only to GitHub code scanning, which needs write access to the repository, never to the Actions logs or artifacts.
 
 ## License
 
