@@ -12,6 +12,8 @@ import 'peer_address.dart';
 
 const String addressDomain = 'ios-registry-addr-v1';
 
+const int _maxMillisecondsSinceEpoch = 8640000000000000;
+
 class AddressBlob {
   static Future<Uint8List> seal({
     required Identity author,
@@ -138,10 +140,22 @@ class AddressBlob {
       throw const BlobAuthenticityException('wrong domain prefix');
     }
 
-    final host = utf8.decode(reader.field());
+    final String host;
+    try {
+      host = utf8.decode(reader.field());
+    } on FormatException {
+      throw const ProtocolException('address host is not valid UTF-8');
+    }
+
     final port = readUint16(reader.field());
+
+    final milliseconds = readInt64(reader.field());
+    if (milliseconds < -_maxMillisecondsSinceEpoch ||
+        milliseconds > _maxMillisecondsSinceEpoch) {
+      throw const ProtocolException('address timestamp is out of range');
+    }
     final publishedAt = DateTime.fromMillisecondsSinceEpoch(
-      readInt64(reader.field()),
+      milliseconds,
       isUtc: true,
     );
     reader.expectEnd();
