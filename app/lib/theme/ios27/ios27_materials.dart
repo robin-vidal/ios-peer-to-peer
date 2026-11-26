@@ -1,6 +1,7 @@
 import 'dart:ui';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:p2pchat/theme/ios27/ios27_typography.dart';
 
 import 'ios27_colors.dart';
 
@@ -99,10 +100,7 @@ class LiquidGlass extends StatelessWidget {
               color: config.backgroundColor,
               borderRadius: effectiveRadius,
               border: config.borderColor != null
-                  ? Border.all(
-                      color: config.borderColor!,
-                      width: 0.5,
-                    )
+                  ? Border.all(color: config.borderColor!, width: 0.5)
                   : null,
             ),
             child: child,
@@ -125,8 +123,7 @@ class LiquidGlass extends StatelessWidget {
           blurSigma: 20,
           shadowOpacity: isDark ? 0.3 : 0.08,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          borderColor:
-              isDark ? IOS27Colors.liquidGlassDarkTint : null,
+          borderColor: isDark ? IOS27Colors.liquidGlassDarkTint : null,
         );
 
       case LiquidGlassSize.medium:
@@ -138,8 +135,7 @@ class LiquidGlass extends StatelessWidget {
           blurSigma: 20,
           shadowOpacity: isDark ? 0.25 : 0.06,
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          borderColor:
-              isDark ? IOS27Colors.liquidGlassDarkTint : null,
+          borderColor: isDark ? IOS27Colors.liquidGlassDarkTint : null,
         );
 
       case LiquidGlassSize.small:
@@ -340,12 +336,7 @@ class _BackgroundMaterialConfig {
 // =============================================================================
 
 /// Edge position for scroll fade effects.
-enum ScrollEdge {
-  top,
-  bottom,
-  leading,
-  trailing,
-}
+enum ScrollEdge { top, bottom, leading, trailing }
 
 /// Scroll edge appearance mode.
 enum ScrollEdgeMode {
@@ -474,11 +465,11 @@ class LiquidGlassNavBar extends StatelessWidget {
             height: 44,
             child: Row(
               children: [
-                if (leading != null) leading!,
+                ?leading,
                 if (leading != null) const SizedBox(width: 8),
                 if (title != null) Expanded(child: Center(child: title!)),
                 if (trailing != null) const SizedBox(width: 8),
-                if (trailing != null) trailing!,
+                ?trailing,
               ],
             ),
           ),

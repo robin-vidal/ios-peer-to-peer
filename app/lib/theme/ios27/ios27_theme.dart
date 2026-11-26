@@ -1,5 +1,5 @@
-import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
+import 'package:cupertino_ui/cupertino_ui.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'ios27_colors.dart';
 import 'ios27_typography.dart';
@@ -85,7 +85,7 @@ class IOS27Theme {
       ),
 
       // TabBar
-      tabBarTheme: TabBarTheme(
+      tabBarTheme: TabBarThemeData(
         labelColor: IOS27Colors.blue,
         unselectedLabelColor: IOS27Colors.gray,
         labelStyle: IOS27Typography.caption2Emphasized,
@@ -107,12 +107,10 @@ class IOS27Theme {
       ),
 
       // Card
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         elevation: 0,
         color: IOS27Colors.backgroundGroupedSecondary,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         margin: const EdgeInsets.symmetric(horizontal: 16),
       ),
 
@@ -138,12 +136,10 @@ class IOS27Theme {
       ),
 
       // Dialog
-      dialogTheme: DialogTheme(
+      dialogTheme: DialogThemeData(
         backgroundColor: IOS27Colors.backgroundPrimary,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         titleTextStyle: IOS27Typography.headline.copyWith(
           color: IOS27Colors.labelPrimary,
         ),
@@ -251,9 +247,7 @@ class IOS27Theme {
         backgroundColor: IOS27Colors.fillTertiary,
         selectedColor: IOS27Colors.blue.withValues(alpha: 0.15),
         labelStyle: IOS27Typography.subheadline,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         side: BorderSide.none,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       ),
@@ -264,9 +258,7 @@ class IOS27Theme {
         contentTextStyle: IOS27Typography.subheadline.copyWith(
           color: Colors.white,
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         behavior: SnackBarBehavior.floating,
         insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       ),
@@ -347,7 +339,7 @@ class IOS27Theme {
       ),
 
       // TabBar
-      tabBarTheme: TabBarTheme(
+      tabBarTheme: TabBarThemeData(
         labelColor: IOS27Colors.blue,
         unselectedLabelColor: IOS27Colors.gray,
         labelStyle: IOS27Typography.caption2Emphasized,
@@ -369,12 +361,10 @@ class IOS27Theme {
       ),
 
       // Card
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         elevation: 0,
         color: IOS27Colors.darkBackgroundGroupedSecondary,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         margin: const EdgeInsets.symmetric(horizontal: 16),
       ),
 
@@ -400,12 +390,10 @@ class IOS27Theme {
       ),
 
       // Dialog
-      dialogTheme: DialogTheme(
+      dialogTheme: DialogThemeData(
         backgroundColor: IOS27Colors.darkBackgroundSecondary,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         titleTextStyle: IOS27Typography.headline.copyWith(
           color: IOS27Colors.darkLabelPrimary,
         ),
@@ -515,9 +503,7 @@ class IOS27Theme {
         labelStyle: IOS27Typography.subheadline.copyWith(
           color: IOS27Colors.darkLabelPrimary,
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         side: BorderSide.none,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       ),
@@ -528,9 +514,7 @@ class IOS27Theme {
         contentTextStyle: IOS27Typography.subheadline.copyWith(
           color: Colors.white,
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         behavior: SnackBarBehavior.floating,
         insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       ),
