@@ -4,6 +4,8 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:p2pchat/pages/scan/scan_view_model.dart';
+import 'package:p2pchat/theme/ios27/ios27_colors.dart';
+import 'package:p2pchat/theme/ios27/ios27_typography.dart';
 import 'package:p2pchat/utils.dart';
 import 'package:registry_client/registry_client.dart';
 import 'package:sliding_up_panel/sliding_up_panel.dart';
@@ -94,56 +96,75 @@ class _ScanState extends State<Scan> {
           Column(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              Stack(
                 children: [
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.of(context).pop();
-                    },
-                    child: Text(
-                      'Cancel',
-                      style: Theme.of(context).textTheme.bodyLarge,
+                  Align(
+                    alignment: AlignmentGeometry.centerLeft,
+                    child: TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                      style: Theme.of(context).textButtonTheme.style!.copyWith(
+                        foregroundColor: WidgetStateColor.resolveWith(
+                          (states) => IOS27Colors.grayWhite,
+                        ),
+                      ),
+                      child: Text('Cancel'),
                     ),
                   ),
-                  Text(
-                    'Scan Contact',
-                    style: Theme.of(context).textTheme.bodyLarge,
+                  Align(
+                    alignment: AlignmentGeometry.center,
+                    child: Text(
+                      'Scan Contact',
+                      style: IOS27Typography.title2Emphasized,
+                    ),
                   ),
-                  GestureDetector(
-                    onTap: () {
-                      controller.toggleTorch();
-                    },
-                    child: FittedBox(
-                      child: Icon(Icons.flashlight_on, color: Colors.grey),
+                  Align(
+                    alignment: AlignmentGeometry.centerRight,
+                    child: TextButton.icon(
+                      label: Text(''),
+                      onPressed: () {
+                        controller.toggleTorch();
+                      },
+                      icon: Icon(Icons.flashlight_on, color: IOS27Colors.gray),
                     ),
                   ),
                 ],
               ),
 
               Column(
+                spacing: 8.0,
                 children: [
                   Text(
                     'Point at Your Contact\'s Code',
-                    style: Theme.of(context).textTheme.bodyLarge,
+                    style: IOS27Typography.body,
                   ),
                   Text(
                     'Both phones need to be in the same room.',
-                    style: Theme.of(context).textTheme.bodyMedium,
+                    style: IOS27Typography.body.copyWith(
+                      color: IOS27Colors.darkLabelSecondary,
+                    ),
                   ),
                   Text(
                     'The camera is only used to read contact codes.\nNothing is stored or uploaded.',
-                    style: Theme.of(context).textTheme.bodyMedium,
+                    style: IOS27Typography.body.copyWith(
+                      color: IOS27Colors.darkLabelSecondary,
+                    ),
                     textAlign: TextAlign.center,
                   ),
-
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                    },
-                    child: Text(
-                      'Show My Card',
-                      style: Theme.of(context).textTheme.bodyMedium,
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                      style: Theme.of(context).elevatedButtonTheme.style!
+                          .copyWith(
+                            backgroundColor: WidgetStateColor.resolveWith(
+                              (states) => IOS27Colors.darkFillSecondary,
+                            ),
+                          ),
+                      child: Text('Show My Card', style: IOS27Typography.body),
                     ),
                   ),
                 ],
@@ -162,26 +183,26 @@ class _ScanState extends State<Scan> {
       child: Column(
         spacing: 16,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          Stack(
             children: [
-              GestureDetector(
-                onTap: scanViewModel.handleCancel,
-                child: Text(
-                  'Cancel',
-                  style: Theme.of(context).textTheme.bodyLarge!
-                      .copyWith(color: Colors.blueAccent),
+              Align(
+                alignment: AlignmentGeometry.centerLeft,
+                child: TextButton(
+                  onPressed: scanViewModel.handleCancel,
+                  child: Text('Cancel'),
                 ),
               ),
-              Text('New Contact', style: Theme.of(context).textTheme.bodyLarge),
-              GestureDetector(
-                onTap: () {
-                  _addContact(context);
-                },
-                child: Text(
-                  'Add',
-                  style: Theme.of(context).textTheme.bodyLarge!
-                      .copyWith(color: Colors.blueAccent),
+              Align(
+                alignment: AlignmentGeometry.center,
+                child: Text('New Contact', style: IOS27Typography.body),
+              ),
+              Align(
+                alignment: AlignmentGeometry.centerRight,
+                child: TextButton(
+                  onPressed: () {
+                    _addContact(context);
+                  },
+                  child: Text('Add', style: IOS27Typography.body),
                 ),
               ),
             ],
@@ -191,18 +212,15 @@ class _ScanState extends State<Scan> {
             decoration: BoxDecoration(
               border: Border.all(color: Colors.transparent),
               borderRadius: BorderRadius.circular(25),
-              color: Colors.grey.shade700,
+              color: IOS27Colors.darkFillPrimary,
             ),
             child: TextField(
               keyboardType: TextInputType.text,
               decoration: InputDecoration(
-                label: Text(
-                  'Name',
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
+                label: Text('Name', style: IOS27Typography.body),
               ),
               onChanged: scanViewModel.onNameTextChange,
-              style: Theme.of(context).textTheme.bodyLarge,
+              // style: IOS27Typography.body,
             ),
           ),
           Column(
@@ -211,7 +229,9 @@ class _ScanState extends State<Scan> {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   'THEIR FINGERPRINT',
-                  style: Theme.of(context).textTheme.bodyMedium,
+                  style: IOS27Typography.body.copyWith(
+                    color: IOS27Colors.darkLabelSecondary,
+                  ),
                 ),
               ),
               Container(
@@ -219,22 +239,24 @@ class _ScanState extends State<Scan> {
                 width: double.infinity,
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.transparent),
-                  borderRadius: BorderRadius.all(Radius.circular(25)),
-                  color: Colors.grey.shade700,
+                  borderRadius: BorderRadius.all(Radius.circular(10)),
+                  color: IOS27Colors.darkFillPrimary,
                 ),
                 child: Text(
                   groupCharacters(
                     newContactCart.id.substring(0, 16),
                     4,
                   ).toUpperCase(),
-                  style: Theme.of(context).textTheme.bodyLarge,
+                  style: IOS27Typography.body.copyWith(fontSize: 28),
                 ),
               ),
             ],
           ),
           Text(
             'Check that it matches the code on their screen before you add them.',
-            style: Theme.of(context).textTheme.bodyMedium,
+            style: IOS27Typography.body.copyWith(
+              color: IOS27Colors.darkLabelSecondary,
+            ),
           ),
         ],
       ),
@@ -252,7 +274,7 @@ class _ScanState extends State<Scan> {
           widget = SlidingUpPanel(
             body: _buildBackground(),
             panel: _buildModal(scanViewModel.scannedFingerprint!),
-            color: Colors.grey.shade800,
+            color: IOS27Colors.darkBackgroundGroupedSecondary,
             borderRadius: BorderRadius.only(
               topLeft: Radius.circular(24),
               topRight: Radius.circular(24),

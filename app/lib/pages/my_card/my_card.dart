@@ -1,6 +1,8 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:p2pchat/app_identity.dart';
 import 'package:p2pchat/pages/scan/scan.dart';
+import 'package:p2pchat/theme/ios27/ios27_colors.dart';
+import 'package:p2pchat/theme/ios27/ios27_typography.dart';
 import 'package:p2pchat/utils.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:registry_client/registry_client.dart';
@@ -23,7 +25,7 @@ class MyCard extends StatelessWidget {
       builder: (context, snapshot) {
         return Center(
           child: Column(
-            spacing: 8.0,
+            spacing: 16.0,
             children: [
               Align(
                 alignment: Alignment.topRight,
@@ -40,7 +42,7 @@ class MyCard extends StatelessWidget {
                   },
                   child: Icon(
                     Icons.ios_share_outlined,
-                    color: Colors.blueAccent,
+                    color: IOS27Colors.blue,
                   ),
                 ),
               ),
@@ -48,7 +50,7 @@ class MyCard extends StatelessWidget {
                 alignment: Alignment.topLeft,
                 child: Text(
                   'My Card',
-                  style: Theme.of(context).textTheme.headlineLarge,
+                  style: IOS27Typography.largeTitleEmphasized,
                 ),
               ),
               snapshot.hasData
@@ -56,22 +58,23 @@ class MyCard extends StatelessWidget {
                       data: snapshot.data!.card.toDB(),
                       size: qrSize,
                       version: QrVersions.auto,
-                      backgroundColor: Colors.white,
+                      backgroundColor: IOS27Colors.grayWhite,
                     )
-                  : Text(
-                      'Loading QR Code...',
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
+                  : Text('Loading QR Code...', style: IOS27Typography.body),
               Text(
                 'Show this code to your contact while you are standing together',
-                style: Theme.of(context).textTheme.bodyMedium,
+                style: IOS27Typography.body.copyWith(
+                  color: IOS27Colors.darkLabelSecondary,
+                ),
                 textAlign: TextAlign.center,
               ),
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
                   'FINGERPRINT',
-                  style: Theme.of(context).textTheme.bodyMedium,
+                  style: IOS27Typography.body.copyWith(
+                    color: IOS27Colors.darkLabelSecondary,
+                  ),
                 ),
               ),
               Container(
@@ -80,7 +83,7 @@ class MyCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.transparent),
                   borderRadius: BorderRadius.all(Radius.circular(10)),
-                  color: Colors.grey[850],
+                  color: IOS27Colors.darkFillPrimary,
                 ),
                 child: FittedBox(
                   fit: BoxFit.fitWidth,
@@ -92,15 +95,17 @@ class MyCard extends StatelessWidget {
                               snapshot.data!.id.substring(0, 16),
                               4,
                             ).toUpperCase(),
-                            style: Theme.of(context).textTheme.bodyLarge,
+                            style: IOS27Typography.body,
                           )
-                        : Text('Loadin fingerprint...'),
+                        : Text('Loading fingerprint...'),
                   ),
                 ),
               ),
               Text(
                 'The first 16 characters of your ID. Read them out loud so your contact can compare.',
-                style: Theme.of(context).textTheme.bodyMedium,
+                style: IOS27Typography.body.copyWith(
+                  color: IOS27Colors.darkLabelSecondary,
+                ),
                 textAlign: TextAlign.center,
               ),
               ElevatedButton(
@@ -108,12 +113,7 @@ class MyCard extends StatelessWidget {
                   Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (context) {
-                        return SafeArea(
-                          child: Scaffold(
-                            backgroundColor: Colors.black,
-                            body: Scan(),
-                          ),
-                        );
+                        return SafeArea(child: Scaffold(body: Scan()));
                       },
                     ),
                   );
@@ -123,13 +123,12 @@ class MyCard extends StatelessWidget {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  backgroundColor: Colors.blue,
                 ),
                 child: Row(
                   spacing: 8,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.camera_alt, color: Colors.white),
+                    Icon(Icons.camera_alt, color: IOS27Colors.grayWhite),
                     Text(
                       'Scan a Contact',
                       style: Theme.of(context).textTheme.bodyLarge,
@@ -139,7 +138,9 @@ class MyCard extends StatelessWidget {
               ),
               Text(
                 'Your card holds two public keys and nothing else. It is safe to show, photograph or print.',
-                style: Theme.of(context).textTheme.bodyMedium,
+                style: IOS27Typography.body.copyWith(
+                  color: IOS27Colors.darkLabelSecondary,
+                ),
                 textAlign: TextAlign.center,
               ),
             ],
