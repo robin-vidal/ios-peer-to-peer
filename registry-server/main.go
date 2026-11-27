@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -67,6 +68,8 @@ func main() {
 
 	slots := make(chan struct{}, maxConns)
 
+	var nextConn atomic.Uint64
+
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
@@ -76,9 +79,10 @@ func main() {
 
 		select {
 		case slots <- struct{}{}:
+			connID := nextConn.Add(1)
 			go func() {
 				defer func() { <-slots }()
-				handleConnection(conn, reg)
+				handleConnection(conn, reg, connID)
 			}()
 		default:
 			conn.Close()
@@ -86,7 +90,7 @@ func main() {
 	}
 }
 
-func handleConnection(conn net.Conn, reg *Registry) {
+func handleConnection(conn net.Conn, reg *Registry, connID uint64) {
 	defer conn.Close()
 
 	if err := conn.SetDeadline(time.Now().Add(authTimeout)); err != nil {
@@ -96,7 +100,7 @@ func handleConnection(conn net.Conn, reg *Registry) {
 	var h handshake
 	defer func() {
 		if h.id != "" {
-			reg.RemoveOwner(h.id)
+			reg.RemoveConn(h.id, connID)
 		}
 	}()
 
@@ -145,7 +149,7 @@ func handleConnection(conn net.Conn, reg *Registry) {
 				}
 			}
 		case "PUBLISH":
-			err = doPublish(reg, reply, fields, h.id)
+			err = doPublish(reg, reply, fields, h.id, connID)
 		case "FETCH":
 			err = doFetch(reg, reply, fields, h.id)
 		case "QUIT":
@@ -162,7 +166,7 @@ func handleConnection(conn net.Conn, reg *Registry) {
 
 type replyFunc func(format string, args ...any) error
 
-func doPublish(reg *Registry, reply replyFunc, fields []string, owner string) error {
+func doPublish(reg *Registry, reply replyFunc, fields []string, owner string, connID uint64) error {
 	if len(fields) != 3 {
 		return reply("ERR usage PUBLISH <recipient-id> <blob-b64>")
 	}
@@ -180,7 +184,7 @@ func doPublish(reg *Registry, reply replyFunc, fields []string, owner string) er
 		return reply("ERR bad-blob")
 	}
 
-	if err := reg.Publish(owner, recipient, blob); err != nil {
+	if err := reg.Publish(owner, connID, recipient, blob); err != nil {
 		return reply("ERR %s", err)
 	}
 	return reply("OK")

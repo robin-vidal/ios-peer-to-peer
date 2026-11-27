@@ -113,7 +113,11 @@ One blob per contact, so a peer that changes network republishes once per contac
 
 ## Lifetime
 
-A blob lives as long as the connection that published it. When the owner disconnects, every blob it published is dropped.
+A blob lives as long as the connection that published it. When a connection closes, every blob it published is dropped, and only those.
+
+One identity may hold several connections at once. This is the normal case on a mobile network: a peer that changes network reconnects before the server has noticed that the old connection is dead. The blobs of each connection are independent, so the old connection closing never drops a blob the new one published. Publishing for a recipient that already has a blob replaces it, and the blob then belongs to the connection that published last.
+
+The cap of 64 recipients is per identity, not per connection: all the connections of one identity share it.
 
 Presence is the connection, not a record. Nothing is persisted: a server restart clears all state, which is correct, since every address it held belonged to a connection that restart just closed.
 

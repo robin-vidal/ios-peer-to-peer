@@ -14,16 +14,21 @@ const (
 
 var errTooManyRecipients = errors.New("too-many-recipients")
 
+type entry struct {
+	blob string
+	conn uint64
+}
+
 type Registry struct {
 	mu    sync.RWMutex
-	blobs map[string]map[string]string
+	blobs map[string]map[string]entry
 }
 
 func NewRegistry() *Registry {
-	return &Registry{blobs: make(map[string]map[string]string)}
+	return &Registry{blobs: make(map[string]map[string]entry)}
 }
 
-func (r *Registry) Publish(owner, recipient, blob string) error {
+func (r *Registry) Publish(owner string, conn uint64, recipient, blob string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -34,11 +39,11 @@ func (r *Registry) Publish(owner, recipient, blob string) error {
 			return errTooManyRecipients
 		}
 	} else {
-		byRecipient = make(map[string]string)
+		byRecipient = make(map[string]entry)
 		r.blobs[owner] = byRecipient
 	}
 
-	byRecipient[recipient] = blob
+	byRecipient[recipient] = entry{blob: blob, conn: conn}
 	return nil
 }
 
@@ -46,15 +51,28 @@ func (r *Registry) Fetch(owner, recipient string) (string, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	blob, ok := r.blobs[owner][recipient]
-	return blob, ok
+	e, ok := r.blobs[owner][recipient]
+	return e.blob, ok
 }
 
-func (r *Registry) RemoveOwner(owner string) {
+func (r *Registry) RemoveConn(owner string, conn uint64) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	delete(r.blobs, owner)
+	byRecipient, ok := r.blobs[owner]
+	if !ok {
+		return
+	}
+
+	for recipient, e := range byRecipient {
+		if e.conn == conn {
+			delete(byRecipient, recipient)
+		}
+	}
+
+	if len(byRecipient) == 0 {
+		delete(r.blobs, owner)
+	}
 }
 
 func ValidID(id string) bool {
