@@ -1,0 +1,375 @@
+name: code-scanning
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: code-scanning-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOSEC_VERSION: v2.30.0
+  GOVULNCHECK_VERSION: v1.9.0
+  STATICCHECK_VERSION: 2026.2.2
+  OSV_SCANNER_VERSION: v2.7.1
+  OSV_SCANNER_GO_VERSION: 1.27.3
+  ACTIONLINT_VERSION: v1.7.12
+  SEMGREP_VERSION: 1.184.0
+  SHELLCHECK_VERSION: v0.11.0
+  SHELLCHECK_SHA256: 8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198
+
+jobs:
+  gosec:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
+        with:
+          go-version-file: registry-server/go.mod
+          cache: false
+      - name: Install
+        run: go install "github.com/securego/gosec/v2/cmd/gosec@$GOSEC_VERSION"
+      - name: Scan
+        working-directory: registry-server
+        run: |
+          gosec -no-fail -fmt sarif -out ../gosec.sarif -stdout -verbose json ./... > ../gosec.json
+          jq -e '(."Golang errors" | length) == 0' ../gosec.json >/dev/null \
+            || { echo "gosec could not load the packages"; jq '."Golang errors"' ../gosec.json; exit 1; }
+          jq -e '.Stats.files > 0' ../gosec.json >/dev/null \
+            || { echo "gosec read no Go file"; exit 1; }
+      - name: Gate
+        run: .github/scripts/sarif-gate.sh gosec.sarif
+      - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066
+        with:
+          sarif_file: gosec.sarif
+          category: gosec
+
+  govulncheck:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
+        with:
+          go-version-file: registry-server/go.mod
+          cache: false
+      - name: Install
+        run: go install "golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK_VERSION"
+      - name: Scan
+        working-directory: registry-server
+        run: govulncheck -format sarif ./... > ../govulncheck.sarif
+      - name: Gate
+        run: .github/scripts/sarif-gate.sh govulncheck.sarif
+      - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066
+        with:
+          sarif_file: govulncheck.sarif
+          category: govulncheck
+
+  staticcheck:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
+        with:
+          go-version-file: registry-server/go.mod
+          cache: false
+      - name: Install
+        run: go install "honnef.co/go/tools/cmd/staticcheck@$STATICCHECK_VERSION"
+      - name: Scan
+        working-directory: registry-server
+        run: |
+          status=0
+          staticcheck -f sarif ./... > ../staticcheck.sarif || status=$?
+          case "$status" in
+            0|1) ;;
+            *) echo "staticcheck failed with exit code $status"; exit "$status" ;;
+          esac
+          # a clean run omits the results array, which upload-sarif rejects
+          jq '.runs[].results //= []' ../staticcheck.sarif > ../staticcheck.sarif.tmp
+          mv ../staticcheck.sarif.tmp ../staticcheck.sarif
+          if jq -e 'any(.runs[].results[]?; .ruleId == "compile")' ../staticcheck.sarif >/dev/null; then
+            echo "staticcheck could not compile the packages"
+            jq -r '.runs[].results[] | select(.ruleId == "compile") | .message.text' ../staticcheck.sarif
+            exit 1
+          fi
+      - name: Gate
+        run: .github/scripts/sarif-gate.sh staticcheck.sarif
+      - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066
+        with:
+          sarif_file: staticcheck.sarif
+          category: staticcheck
+
+  semgrep:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Install
+        run: pipx install "semgrep==$SEMGREP_VERSION"
+      - name: Prove every rule matches Dart
+        run: semgrep scan --metrics=off --disable-version-check --test .github/semgrep
+      - name: Scan
+        run: |
+          # stdout carries the text report with every finding: keep it out of the public log
+          semgrep scan --metrics=off --disable-version-check \
+            --config .github/semgrep/dart-crypto.yaml \
+            --sarif-output=semgrep.sarif --json-output=semgrep.json \
+            client/lib app/lib > /dev/null
+          jq -e '.errors | length == 0' semgrep.json >/dev/null \
+            || { echo "semgrep reported errors, a file it cannot parse is not covered"; jq '.errors' semgrep.json; exit 1; }
+          for target in client/lib/src/crypto.dart client/lib/src/identity.dart client/lib/src/address_blob.dart; do
+            jq -e --arg target "$target" 'any(.paths.scanned[]; . == $target)' semgrep.json >/dev/null \
+              || { echo "semgrep did not scan $target"; exit 1; }
+          done
+      - name: Gate
+        run: .github/scripts/sarif-gate.sh semgrep.sarif
+      - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep-dart
+
+  osv-scanner:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
+        with:
+          # osv-scanner needs a newer Go than the 1.27.1 registry-server pins
+          go-version: ${{ env.OSV_SCANNER_GO_VERSION }}
+          cache: false
+      - name: Install
+        run: go install "github.com/google/osv-scanner/v2/cmd/osv-scanner@$OSV_SCANNER_VERSION"
+      - name: List the lockfiles
+        id: lockfiles
+        run: |
+          set --
+          for lockfile in client/pubspec.lock app/pubspec.lock; do
+            [ -s "$lockfile" ] || { echo "$lockfile is missing"; exit 1; }
+            set -- "$@" "$lockfile"
+          done
+
+          modules=$(cd registry-server && go list -m all | wc -l)
+          if [ "$modules" -eq 1 ]; then
+            if [ -e registry-server/go.sum ]; then
+              echo "registry-server has no dependency but carries a go.sum"
+              exit 1
+            fi
+            echo "registry-server depends on the standard library only, its module graph is empty"
+          else
+            [ -s registry-server/go.sum ] || { echo "registry-server has dependencies and no go.sum"; exit 1; }
+            set -- "$@" registry-server/go.sum
+          fi
+
+          for resolved in $(git ls-files '*Package.resolved'); do
+            set -- "$@" "$resolved"
+          done
+
+          echo "scanning $*"
+          echo "args=$(printf -- '-L %s ' "$@")" >> "$GITHUB_OUTPUT"
+      - name: Scan
+        env:
+          LOCKFILE_ARGS: ${{ steps.lockfiles.outputs.args }}
+        run: |
+          status=0
+          # shellcheck disable=SC2086
+          osv-scanner scan source --format sarif $LOCKFILE_ARGS > osv-scanner.sarif || status=$?
+          case "$status" in
+            0|1) ;;
+            *) echo "osv-scanner failed with exit code $status"; exit "$status" ;;
+          esac
+      - name: Gate
+        run: .github/scripts/sarif-gate.sh osv-scanner.sarif
+      - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066
+        with:
+          sarif_file: osv-scanner.sarif
+          category: osv-scanner
+
+  actionlint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
+        with:
+          go-version-file: registry-server/go.mod
+          cache: false
+      - name: Install shellcheck, which actionlint runs over every run block
+        run: |
+          curl -fsSL -o shellcheck.tar.xz \
+            "https://github.com/koalaman/shellcheck/releases/download/$SHELLCHECK_VERSION/shellcheck-$SHELLCHECK_VERSION.linux.x86_64.tar.xz"
+          echo "$SHELLCHECK_SHA256  shellcheck.tar.xz" | sha256sum -c -
+          tar -xJf shellcheck.tar.xz
+          sudo install "shellcheck-$SHELLCHECK_VERSION/shellcheck" /usr/local/bin/shellcheck
+          rm -r shellcheck.tar.xz "shellcheck-$SHELLCHECK_VERSION"
+      - name: Install
+        run: go install "github.com/rhysd/actionlint/cmd/actionlint@$ACTIONLINT_VERSION"
+      - name: Scan
+        run: |
+          [ -n "$(git ls-files '.github/workflows/*.yml' '.github/workflows/*.yaml')" ] \
+            || { echo "no workflow file found"; exit 1; }
+          status=0
+          actionlint -format '{{json .}}' > actionlint.json || status=$?
+          case "$status" in
+            0|1) ;;
+            *) echo "actionlint failed with exit code $status"; exit "$status" ;;
+          esac
+          .github/scripts/sarif-from-json.sh actionlint actionlint.json actionlint.sarif
+      - name: Gate
+        run: .github/scripts/sarif-gate.sh actionlint.sarif
+      - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066
+        with:
+          sarif_file: actionlint.sarif
+          category: actionlint
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Install
+        run: |
+          curl -fsSL -o shellcheck.tar.xz \
+            "https://github.com/koalaman/shellcheck/releases/download/$SHELLCHECK_VERSION/shellcheck-$SHELLCHECK_VERSION.linux.x86_64.tar.xz"
+          echo "$SHELLCHECK_SHA256  shellcheck.tar.xz" | sha256sum -c -
+          tar -xJf shellcheck.tar.xz
+          sudo install "shellcheck-$SHELLCHECK_VERSION/shellcheck" /usr/local/bin/shellcheck
+          rm -r shellcheck.tar.xz "shellcheck-$SHELLCHECK_VERSION"
+      - name: Scan
+        run: |
+          set --
+          for script in $(git ls-files '.github/scripts' 'tools'); do
+            case "$script" in
+              *.sh) set -- "$@" "$script" ;;
+              *) head -n 1 "$script" | grep -Eq '^#!.*/(env )?(ba|da|k)?sh( |$)' && set -- "$@" "$script" ;;
+            esac
+          done
+          [ "$#" -gt 0 ] || { echo "no shell script found"; exit 1; }
+          echo "checking $*"
+          status=0
+          shellcheck -f json1 "$@" > shellcheck.json || status=$?
+          case "$status" in
+            0|1) ;;
+            *) echo "shellcheck failed with exit code $status"; exit "$status" ;;
+          esac
+          .github/scripts/sarif-from-json.sh shellcheck shellcheck.json shellcheck.sarif
+      - name: Gate
+        run: .github/scripts/sarif-gate.sh shellcheck.sarif
+      - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066
+        with:
+          sarif_file: shellcheck.sarif
+          category: shellcheck
+
+  swift-sources:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      present: ${{ steps.detect.outputs.present }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Look for the enclave plugin of issue 31
+        id: detect
+        run: |
+          template='app/ios/Runner/AppDelegate.swift
+          app/ios/Runner/SceneDelegate.swift
+          app/ios/RunnerTests/RunnerTests.swift
+          app/macos/Flutter/GeneratedPluginRegistrant.swift
+          app/macos/Runner/AppDelegate.swift
+          app/macos/Runner/MainFlutterWindow.swift
+          app/macos/RunnerTests/RunnerTests.swift'
+          own=$(git ls-files '*.swift' | grep -vxF "$template" || true)
+          enclave=$(git grep -l 'SecureEnclave' -- '*.swift' || true)
+          if [ -n "$own$enclave" ]; then
+            echo "Swift beyond the Flutter template:"
+            printf '%s\n%s\n' "$own" "$enclave" | sed '/^$/d' | sort -u
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "only the Flutter template is Swift, CodeQL waits on issue 31"
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  codeql-swift:
+    needs: swift-sources
+    if: needs.swift-sources.outputs.present == 'true'
+    runs-on: macos-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: 3.50.0
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066
+        with:
+          languages: swift
+          build-mode: manual
+          queries: security-extended
+      - name: Build
+        working-directory: app
+        # on arm64 runners flutter wraps xcodebuild in /usr/bin/arch, a SIP binary that strips
+        # the CodeQL tracer, so flutter only writes the config and xcodebuild compiles the Swift
+        run: |
+          flutter pub get
+          flutter build ios --debug --no-codesign --config-only
+          xcodebuild -quiet -workspace ios/Runner.xcworkspace -scheme Runner -configuration Debug \
+            -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066
+        with:
+          category: codeql-swift
+          upload: never
+          output: codeql
+      - name: Gate
+        run: |
+          set -- codeql/*.sarif
+          [ -e "$1" ] || { echo "CodeQL wrote no SARIF"; exit 1; }
+          for sarif in "$@"; do
+            .github/scripts/sarif-gate.sh "$sarif"
+          done
+      - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066
+        with:
+          sarif_file: codeql
+          category: codeql-swift
