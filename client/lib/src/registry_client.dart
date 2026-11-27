@@ -91,7 +91,7 @@ class RegistryClient {
       fields: 2,
     );
 
-    final nonce = base64.decode(challenge[1]);
+    final nonce = decodeBase64Field(challenge[1], name: 'challenge');
     final signature = await identity.sign(<int>[
       ...utf8.encode(authDomain),
       ...nonce,
@@ -153,7 +153,7 @@ class RegistryClient {
     return AddressBlob.open(
       recipient: _identity,
       author: of,
-      blob: Uint8List.fromList(base64.decode(blob[2])),
+      blob: decodeBase64Field(blob[2], name: 'blob'),
       maxAge: maxAge,
     );
   }
@@ -175,6 +175,14 @@ class RegistryClient {
       throw ProtocolException('expected $keyword, got "$line"');
     }
     return parts;
+  }
+}
+
+Uint8List decodeBase64Field(String text, {required String name}) {
+  try {
+    return base64.decode(text);
+  } on FormatException {
+    throw ProtocolException('the $name field is not valid base64');
   }
 }
 

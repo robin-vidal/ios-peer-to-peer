@@ -12,6 +12,8 @@ import 'peer_address.dart';
 
 const String addressDomain = 'ios-registry-addr-v1';
 
+const int _maxMillisecondsSinceEpoch = 8640000000000000;
+
 class AddressBlob {
   static Future<Uint8List> seal({
     required Identity author,
@@ -40,7 +42,12 @@ class AddressBlob {
 
     return (FieldWriter()
           ..raw(ephemeralPublicKey)
-          ..raw(aesGcmSeal(key: key, plaintext: payload.take())))
+          ..raw(aesGcmSeal(
+            key: key,
+            nonce: Uint8List(gcmNonceLength),
+            associatedData: Uint8List(0),
+            plaintext: payload.take(),
+          )))
         .take();
   }
 
@@ -68,7 +75,12 @@ class AddressBlob {
 
     final Uint8List payload;
     try {
-      payload = aesGcmOpen(key: key, ciphertext: sealed);
+      payload = aesGcmOpen(
+        key: key,
+        nonce: Uint8List(gcmNonceLength),
+        associatedData: Uint8List(0),
+        ciphertext: sealed,
+      );
     } on InvalidCipherTextException {
       throw const BlobAuthenticityException(
         'address blob is not sealed for this identity',
@@ -128,10 +140,22 @@ class AddressBlob {
       throw const BlobAuthenticityException('wrong domain prefix');
     }
 
-    final host = utf8.decode(reader.field());
+    final String host;
+    try {
+      host = utf8.decode(reader.field());
+    } on FormatException {
+      throw const ProtocolException('address host is not valid UTF-8');
+    }
+
     final port = readUint16(reader.field());
+
+    final milliseconds = readInt64(reader.field());
+    if (milliseconds < -_maxMillisecondsSinceEpoch ||
+        milliseconds > _maxMillisecondsSinceEpoch) {
+      throw const ProtocolException('address timestamp is out of range');
+    }
     final publishedAt = DateTime.fromMillisecondsSinceEpoch(
-      readInt64(reader.field()),
+      milliseconds,
       isUtc: true,
     );
     reader.expectEnd();
