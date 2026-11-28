@@ -65,4 +65,19 @@ class ContactCard {
 
   @override
   String toString() => 'ContactCard($shortFingerprint)';
+
+  factory ContactCard.fromDB(String row) {
+    final agreementKey = Uint8List.fromList(row.substring(0, 65).codeUnits);
+    final signKey = Uint8List.fromList(row.substring(65).codeUnits);
+    final id = hexEncode(sha256Of(<int>[
+      ...signKey,
+      ...agreementKey,
+    ]));
+    return ContactCard(
+        signingPublicKey: signKey, agreementPublicKey: agreementKey, id: id);
+  }
+
+  String toDB() {
+    return String.fromCharCodes(agreementPublicKey + signingPublicKey);
+  }
 }

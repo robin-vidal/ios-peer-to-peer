@@ -1,9 +1,12 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:p2pchat/pages/my_card/my_card.dart';
+import 'package:p2pchat/theme/ios27/ios27_theme.dart';
+import 'package:p2pchat/widgets/bottom_nav_bar.dart';
 
 import 'app_identity.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -16,27 +19,17 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: MyHomePage(
-        title: 'Flutter Demo Home Page',
-        identityLoader: identityLoader,
+      theme: IOS27Theme.light(),
+      darkTheme: IOS27Theme.dark(),
+      home: SafeArea(
+        child: BottomNavBar(
+          homeWidget: MyHomePage(
+            title: 'Home Page',
+            identityLoader: identityLoader,
+          ),
+          codeWidget: MyCard(200),
+          settingsWidget: Text('Settings'),
+        ),
       ),
     );
   }
@@ -155,8 +148,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         ),
                         actions: [
                           TextButton(
-                            onPressed: () =>
-                                Navigator.of(dialogContext).pop(),
+                            onPressed: () => Navigator.of(dialogContext).pop(),
                             child: const Text('OK'),
                           ),
                         ],
