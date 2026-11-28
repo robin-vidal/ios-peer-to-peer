@@ -1,9 +1,10 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:p2pchat/pages/splash_screen.dart';
 
 import 'app_identity.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(const SplashScreen());
 }
 
 class MyApp extends StatelessWidget {
@@ -155,8 +156,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         ),
                         actions: [
                           TextButton(
-                            onPressed: () =>
-                                Navigator.of(dialogContext).pop(),
+                            onPressed: () => Navigator.of(dialogContext).pop(),
                             child: const Text('OK'),
                           ),
                         ],

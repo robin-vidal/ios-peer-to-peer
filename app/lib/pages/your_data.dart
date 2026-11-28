@@ -6,11 +6,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 const consentSharedKey = "HAVE_CONSENT";
 
 class YourData extends StatelessWidget {
-  const YourData({super.key});
+  const YourData({required this.onCensentGiven, super.key});
+
+  final void Function() onCensentGiven;
 
   void onAgreeClick() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(consentSharedKey, true);
+    onCensentGiven();
   }
 
   ListTile generateListTileInfoItem(
